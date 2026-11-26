@@ -1,11 +1,15 @@
 const AVATAR_MAX = 120_000;
 const BG_MAX = 700_000;
+const THUMB_MAX = 30_000;
+const GALLERY_MAX = 70_000;
+
+export type ImageKind = 'avatar' | 'bg' | 'thumb' | 'gallery';
 
 /**
  * Resizes + compresses an image in the browser and returns a small data URL.
  * Avatars are square-cropped to 320px; backgrounds fit within 900x1600.
  */
-export async function processImage(file: File, kind: 'avatar' | 'bg'): Promise<string> {
+export async function processImage(file: File, kind: ImageKind): Promise<string> {
   if (!file.type.startsWith('image/')) throw new Error('Pick an image file');
   if (file.size > 15 * 1024 * 1024) throw new Error('Image is too big (max 15 MB)');
 
@@ -19,15 +23,16 @@ export async function processImage(file: File, kind: 'avatar' | 'bg'): Promise<s
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
 
-  if (kind === 'avatar') {
-    const S = 320;
+  if (kind === 'avatar' || kind === 'thumb') {
+    const S = kind === 'avatar' ? 320 : 128;
     canvas.width = canvas.height = S;
     const side = Math.min(bmp.width, bmp.height);
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, S, S);
     ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, S, S);
   } else {
-    const scale = Math.min(1, 900 / bmp.width, 1600 / bmp.height);
+    const [mw, mh] = kind === 'gallery' ? [560, 560] : [900, 1600];
+    const scale = Math.min(1, mw / bmp.width, mh / bmp.height);
     canvas.width = Math.round(bmp.width * scale);
     canvas.height = Math.round(bmp.height * scale);
     ctx.fillStyle = '#fff';
@@ -36,7 +41,7 @@ export async function processImage(file: File, kind: 'avatar' | 'bg'): Promise<s
   }
   bmp.close();
 
-  const max = kind === 'avatar' ? AVATAR_MAX : BG_MAX;
+  const max = { avatar: AVATAR_MAX, bg: BG_MAX, thumb: THUMB_MAX, gallery: GALLERY_MAX }[kind];
   for (const q of [0.85, 0.7, 0.55, 0.4]) {
     const url = canvas.toDataURL('image/jpeg', q);
     if (url.length <= max) return url;

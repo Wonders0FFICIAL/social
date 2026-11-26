@@ -6,6 +6,29 @@ export interface LinkDoc {
   title: string;
   url: string;
   hidden?: boolean;
+  icon?: string; // '' auto favicon | 'none' | emoji | image (https / data URL)
+}
+
+export interface GalleryImageDoc {
+  id: string;
+  src: string;
+  caption: string;
+}
+
+export interface EmbedDoc {
+  id: string;
+  url: string;
+}
+
+export type PageKind = 'links' | 'gallery' | 'showcase';
+
+export interface PageDoc {
+  id: string;
+  title: string;
+  kind: PageKind;
+  links: LinkDoc[];
+  images: GalleryImageDoc[];
+  embeds: EmbedDoc[];
 }
 
 export interface ProfileDoc {
@@ -16,7 +39,9 @@ export interface ProfileDoc {
   bio: string;
   avatarUrl: string;
   theme?: Theme;
+  homeTitle?: string;
   links: LinkDoc[];
+  pages?: PageDoc[];
   disabled?: boolean; // set to true in Atlas to hide/ban a profile
   createdAt: Date;
   updatedAt: Date;
@@ -58,6 +83,8 @@ export function toPublic(doc: ProfileDoc) {
     bio: doc.bio,
     avatarUrl: doc.avatarUrl,
     theme: 'theme' in t ? t.theme : DEFAULT_THEME,
-    links: doc.links.map((l) => ({ ...l, hidden: l.hidden === true })),
+    homeTitle: doc.homeTitle || 'Links',
+    links: doc.links.map((l) => ({ ...l, hidden: l.hidden === true, icon: l.icon ?? '' })),
+    pages: doc.pages ?? [],
   };
 }

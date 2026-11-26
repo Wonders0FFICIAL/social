@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { LinkDoc } from './db.js';
+import { AVATAR_MAX, cleanImage, cleanUrl } from './clean.js';
+import { cleanTheme, type Theme } from './theme.js';
 
 // Usernames nobody should be able to claim.
 const RESERVED = new Set([
   'edit', 'new', 'admin', 'api', 'login', 'logout', 'signin', 'signup',
   'settings', 'pricing', 'products', 'privacy', 'terms', 'help', 'support',
   'about', 'jr', 'junior', 'official', 'www', 'social', 'me', 'null',
-  'undefined', 'root', 'staff', 'moderator', 'mod',
+  'undefined', 'root', 'staff', 'moderator', 'mod', 'assets', 'static',
 ]);
 
 export const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
@@ -16,26 +18,8 @@ export interface CleanProfile {
   displayName: string;
   bio: string;
   avatarUrl: string;
-  accent: string;
+  theme: Theme;
   links: LinkDoc[];
-}
-
-/** https only, must look like a real hostname. Returns null if invalid. */
-function cleanUrl(raw: unknown, allowEmpty = false): string | null {
-  if (typeof raw !== 'string') return null;
-  let s = raw.trim();
-  if (!s) return allowEmpty ? '' : null;
-  if (s.length > 500) return null;
-  s = s.replace(/^http:\/\//i, 'https://');
-  if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = `https://${s}`;
-  try {
-    const u = new URL(s);
-    if (u.protocol !== 'https:') return null;
-    if (!u.hostname.includes('.')) return null;
-    return u.toString();
-  } catch {
-    return null;
-  }
 }
 
 export function cleanProfile(
@@ -54,12 +38,13 @@ export function cleanProfile(
 
   const bio = String(body.bio ?? '').trim().slice(0, 160);
 
-  const avatarUrl = cleanUrl(body.avatarUrl, true);
-  if (avatarUrl === null) return { error: 'Avatar must be an https image URL' };
+  const avatarUrl = cleanImage(body.avatarUrl, AVATAR_MAX);
+  if (avatarUrl === null) {
+    return { error: 'Avatar must be an https image URL or an uploaded image' };
+  }
 
-  const accent = /^#[0-9a-f]{6}$/i.test(String(body.accent))
-    ? String(body.accent).toLowerCase()
-    : '#a855f7';
+  const t = cleanTheme(body.theme);
+  if ('error' in t) return { error: t.error };
 
   if (!Array.isArray(body.links)) return { error: 'Bad links' };
   if (body.links.length > 30) return { error: 'You can add up to 30 links' };
@@ -71,8 +56,10 @@ export function cleanProfile(
     const url = cleanUrl(l?.url);
     if (!url) return { error: `Link ${i + 1} needs a valid https URL` };
     const id = String(l?.id ?? '').slice(0, 36) || randomUUID();
-    links.push({ id, title, url });
+    links.push({ id, title, url, hidden: l?.hidden === true });
   }
 
-  return { data: { username, displayName, bio, avatarUrl, accent, links } };
+  return {
+    data: { username, displayName, bio, avatarUrl, theme: t.theme, links },
+  };
 }

@@ -1,9 +1,11 @@
 import { MongoClient, type Collection, type ObjectId } from 'mongodb';
+import { cleanTheme, DEFAULT_THEME, type Theme } from './theme.js';
 
 export interface LinkDoc {
   id: string;
   title: string;
   url: string;
+  hidden?: boolean;
 }
 
 export interface ProfileDoc {
@@ -13,7 +15,7 @@ export interface ProfileDoc {
   displayName: string;
   bio: string;
   avatarUrl: string;
-  accent: string;
+  theme?: Theme;
   links: LinkDoc[];
   disabled?: boolean; // set to true in Atlas to hide/ban a profile
   createdAt: Date;
@@ -49,12 +51,13 @@ export async function profiles(): Promise<Collection<ProfileDoc>> {
 
 /** What the outside world is allowed to see. */
 export function toPublic(doc: ProfileDoc) {
+  const t = cleanTheme(doc.theme);
   return {
     username: doc.username,
     displayName: doc.displayName,
     bio: doc.bio,
     avatarUrl: doc.avatarUrl,
-    accent: doc.accent,
-    links: doc.links,
+    theme: 'theme' in t ? t.theme : DEFAULT_THEME,
+    links: doc.links.map((l) => ({ ...l, hidden: l.hidden === true })),
   };
 }

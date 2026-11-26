@@ -20,10 +20,11 @@ export default function GoogleSignIn({
         callback: (r: { credential: string }) => cb.current(r.credential),
       });
       g.accounts.id.renderButton(ref.current, {
-        theme: 'filled_black',
+        theme: 'outline',
         size: 'large',
-        shape: 'pill',
+        shape: 'rectangular',
         text: 'continue_with',
+        width: 280,
       });
     }
 

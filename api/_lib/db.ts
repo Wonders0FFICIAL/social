@@ -28,7 +28,13 @@ export async function profiles(): Promise<Collection<ProfileDoc>> {
   if (!uri) throw new Error('MONGODB_URI is not set');
 
   clientPromise ??= new MongoClient(uri, { maxPoolSize: 5 }).connect();
-  const client = await clientPromise;
+  let client: MongoClient;
+  try {
+    client = await clientPromise;
+  } catch (e) {
+    clientPromise = undefined; // don't cache a failed connection; retry next request
+    throw e;
+  }
   const col = client
     .db(process.env.MONGODB_DB || 'jr')
     .collection<ProfileDoc>('social_profiles');

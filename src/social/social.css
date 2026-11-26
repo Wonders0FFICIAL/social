@@ -1,0 +1,418 @@
+/* JR. social links — neon purple dark theme. All classes are prefixed sl- */
+
+.sl-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  color: #f4effb;
+  background: radial-gradient(1200px 600px at 50% -10%, #2a1250 0%, #0b0714 60%);
+}
+.sl-root *,
+.sl-root *::before,
+.sl-root *::after {
+  box-sizing: border-box;
+}
+
+/* ---------- phone ---------- */
+.sl-phone {
+  position: relative;
+  flex-shrink: 0;
+  width: 300px;
+  height: 620px;
+  overflow: hidden;
+  border: 10px solid #1a1228;
+  border-radius: 46px;
+  background: #000;
+  box-shadow: 0 0 0 2px #2c2144, 0 30px 80px -20px rgba(168, 85, 247, 0.55),
+    0 0 80px -10px rgba(168, 85, 247, 0.25);
+}
+.sl-notch {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 3;
+  width: 84px;
+  height: 22px;
+  transform: translateX(-50%);
+  border-radius: 14px;
+  background: #000;
+}
+
+/* ---------- profile screen ---------- */
+.sl-screen {
+  --accent: #a855f7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  padding: 52px 18px 20px;
+  overflow-y: auto;
+  text-align: center;
+  scrollbar-width: none;
+  background: radial-gradient(
+    120% 60% at 50% 0%,
+    color-mix(in srgb, var(--accent) 38%, #0b0714) 0%,
+    #0b0714 70%
+  );
+}
+.sl-screen::-webkit-scrollbar {
+  display: none;
+}
+.sl-avatar {
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.sl-avatar-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 25%, #151022);
+}
+.sl-name {
+  margin: 12px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.sl-handle {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--accent);
+}
+.sl-bio {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #c9bfdc;
+  word-break: break-word;
+}
+.sl-links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin: 20px 0 16px;
+}
+.sl-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, #2a2040);
+  border-radius: 14px;
+  color: #f4effb;
+  text-decoration: none;
+  background: rgba(21, 16, 34, 0.75);
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.sl-link:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 6px 24px -8px var(--accent);
+}
+.sl-favicon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 6px;
+}
+.sl-link-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  padding-right: 22px; /* balances the favicon so text looks centred */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sl-empty {
+  padding: 18px 0;
+  font-size: 12px;
+  color: #8a7fa3;
+}
+.sl-made {
+  margin-top: auto;
+  font-size: 11px;
+  color: #7b6f95;
+  text-decoration: none;
+}
+.sl-made:hover {
+  color: #c9bfdc;
+}
+
+/* ---------- shared bits ---------- */
+.sl-status {
+  text-align: center;
+  color: #c9bfdc;
+}
+.sl-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 28px;
+  border: 1px solid #2a2040;
+  border-radius: 20px;
+  background: #151022;
+}
+.sl-signin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.sl-signin h2,
+.sl-signin p {
+  margin: 0;
+}
+.sl-signin p {
+  color: #c9bfdc;
+}
+.sl-btn {
+  display: inline-block;
+  padding: 11px 22px;
+  border: 0;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
+  box-shadow: 0 8px 28px -10px #a855f7;
+}
+.sl-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.sl-ghost {
+  padding: 9px 14px;
+  border: 1px solid #2a2040;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  color: #d8cdea;
+  text-decoration: none;
+  cursor: pointer;
+  background: transparent;
+}
+.sl-ghost:hover {
+  border-color: #a855f7;
+}
+.sl-msg {
+  margin-top: 10px;
+  font-size: 14px;
+}
+.sl-ok {
+  color: #4ade80;
+}
+.sl-err {
+  color: #fb7185;
+}
+
+/* ---------- editor ---------- */
+.sl-editor {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 48px;
+  width: 100%;
+  max-width: 1000px;
+}
+.sl-form {
+  flex: 1;
+  min-width: 0;
+  max-width: 560px;
+  padding: 24px;
+  border: 1px solid #2a2040;
+  border-radius: 20px;
+  background: #151022;
+}
+.sl-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.sl-topbar h2 {
+  margin: 0;
+}
+.sl-previewcol {
+  position: sticky;
+  top: 32px;
+}
+.sl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+}
+.sl-field > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #a99cc4;
+}
+.sl-form input:not([type='color']),
+.sl-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #2a2040;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  color: #f4effb;
+  background: #0d0918;
+  outline: none;
+}
+.sl-form input:focus,
+.sl-form textarea:focus {
+  border-color: #a855f7;
+}
+.sl-form textarea {
+  resize: vertical;
+}
+.sl-prefix {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #2a2040;
+  border-radius: 10px;
+  background: #0d0918;
+}
+.sl-prefix i {
+  padding-left: 12px;
+  font-size: 13px;
+  font-style: normal;
+  white-space: nowrap;
+  color: #7b6f95;
+}
+.sl-prefix input {
+  border: 0 !important;
+  padding-left: 2px !important;
+}
+.sl-mini {
+  padding: 0;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  color: #a855f7;
+  cursor: pointer;
+  background: none;
+}
+.sl-swatches {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sl-swatch {
+  width: 26px;
+  height: 26px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.sl-swatch.on {
+  border-color: #fff;
+}
+.sl-swatches input[type='color'] {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  background: none;
+}
+.sl-linkrow {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  padding: 10px;
+  border: 1px solid #2a2040;
+  border-radius: 12px;
+  background: #100b1c;
+}
+.sl-linkinputs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.sl-linkbtns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sl-linkbtns button {
+  flex: 1;
+  width: 30px;
+  border: 1px solid #2a2040;
+  border-radius: 8px;
+  color: #d8cdea;
+  cursor: pointer;
+  background: transparent;
+}
+.sl-linkbtns button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.sl-linkbtns button:not(:disabled):hover {
+  border-color: #a855f7;
+}
+.sl-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .sl-editor {
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 28px;
+  }
+  .sl-previewcol {
+    position: static;
+  }
+  .sl-form {
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
+/* On a real phone the public page IS the phone: drop the bezel. */
+@media (max-width: 520px) {
+  .sl-public {
+    padding: 0;
+    justify-content: flex-start;
+  }
+  .sl-public .sl-phone {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .sl-public .sl-notch {
+    display: none;
+  }
+  .sl-public .sl-screen {
+    padding-top: 40px;
+  }
+}

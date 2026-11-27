@@ -19,6 +19,30 @@ export interface SocialLink {
   title: string;
   url: string;
   hidden?: boolean;
+  /** '' = auto favicon | 'none' | emoji | image (https URL / data URL) */
+  icon?: string;
+}
+
+export interface GalleryImage {
+  id: string;
+  src: string;
+  caption: string;
+}
+
+export interface EmbedItem {
+  id: string;
+  url: string;
+}
+
+export type PageKind = 'links' | 'gallery' | 'showcase';
+
+export interface SocialPage {
+  id: string;
+  title: string;
+  kind: PageKind;
+  links: SocialLink[];
+  images: GalleryImage[];
+  embeds: EmbedItem[];
 }
 
 export interface SocialProfile {
@@ -27,7 +51,9 @@ export interface SocialProfile {
   bio: string;
   avatarUrl: string;
   theme: Theme;
+  homeTitle: string;
   links: SocialLink[];
+  pages: SocialPage[];
 }
 
 export interface Me {

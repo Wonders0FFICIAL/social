@@ -1,12 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api } from './api';
-import GoogleSignIn from './GoogleSignIn';
-import { processImage } from './image';
+import { parseEmbed } from './embed';
+import { processImage, type ImageKind } from './image';
+import Logo from './Logo';
 import PhoneFrame, { PHONE_H, PHONE_W } from './PhoneFrame';
-import ProfileScreen from './ProfileScreen';
+import ProfileScreen, { isImageIcon } from './ProfileScreen';
 import { bgCss, DEFAULT_THEME, PRESETS, SWATCHES } from './themes';
-import type { Me, SocialLink, SocialProfile, Theme } from './types';
+import type {
+  GalleryImage,
+  Me,
+  PageKind,
+  SocialLink,
+  SocialPage,
+  SocialProfile,
+  Theme,
+} from './types';
 import { useViewport } from './useViewport';
 
 const EMPTY: SocialProfile = {
@@ -15,7 +24,9 @@ const EMPTY: SocialProfile = {
   bio: '',
   avatarUrl: '',
   theme: DEFAULT_THEME,
+  homeTitle: 'Links',
   links: [],
+  pages: [],
 };
 
 const QUICK: [string, string][] = [
@@ -30,6 +41,16 @@ const QUICK: [string, string][] = [
   ['Website', 'https://'],
 ];
 
+const EMOJIS = ['🔗', '🌐', '📸', '🎬', '🎵', '💼', '🛍️', '✉️', '📝', '🎮', '💬', '⭐', '🎨', '📅'];
+
+const MAX_LINKS = 30;
+const MAX_PAGES = 4;
+const MAX_GALLERY = 9;
+const MAX_EMBEDS = 8;
+const MAX_BYTES = 3_800_000;
+
+const uid = () => crypto.randomUUID();
+
 function validUrl(u: string): boolean {
   try {
     const x = new URL(/^[a-z][a-z0-9+.-]*:/i.test(u) ? u : `https://${u}`);
@@ -37,6 +58,14 @@ function validUrl(u: string): boolean {
   } catch {
     return false;
   }
+}
+
+function move<T>(arr: T[], i: number, dir: -1 | 1): T[] {
+  const j = i + dir;
+  if (j < 0 || j >= arr.length) return arr;
+  const next = [...arr];
+  [next[i], next[j]] = [next[j], next[i]];
+  return next;
 }
 
 /* ---------------- small controls ---------------- */
@@ -119,13 +148,14 @@ function ImagePicker({
   extra,
 }: {
   value: string;
-  kind: 'avatar' | 'bg';
+  kind: Extract<ImageKind, 'avatar' | 'bg' | 'thumb'>;
   onChange: (v: string) => void;
   extra?: React.ReactNode;
 }) {
   const file = useRef<HTMLInputElement>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const isImg = value.startsWith('data:') || value.startsWith('https://');
 
   async function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -147,14 +177,14 @@ function ImagePicker({
       <div className="ed-img-row">
         <div
           className={`ed-thumb ${kind}`}
-          style={value ? { backgroundImage: `url(${JSON.stringify(value)})` } : undefined}
+          style={isImg ? { backgroundImage: `url(${JSON.stringify(value)})` } : undefined}
         />
         <div className="ed-img-actions">
           <button type="button" className="ed-btn sm" onClick={() => file.current?.click()} disabled={busy}>
             {busy ? 'Processing…' : 'Upload image'}
           </button>
           {extra}
-          {value && (
+          {isImg && (
             <button type="button" className="ed-link-btn" onClick={() => onChange('')}>
               Remove
             </button>
@@ -164,7 +194,7 @@ function ImagePicker({
       <input
         className="ed-input"
         placeholder="…or paste an image URL (https://)"
-        value={value.startsWith('data:') ? '' : value}
+        value={value.startsWith('data:') ? '' : isImg ? value : ''}
         onChange={(e) => onChange(e.target.value)}
       />
       <input ref={file} type="file" accept="image/*" hidden onChange={pick} />
@@ -173,11 +203,375 @@ function ImagePicker({
   );
 }
 
+/* ---------------- link icons + list ---------------- */
+
+type IconMode = 'auto' | 'emoji' | 'image' | 'none';
+
+function modeOf(icon: string): IconMode {
+  if (icon === 'none') return 'none';
+  if (!icon) return 'auto';
+  return isImageIcon(icon) ? 'image' : 'emoji';
+}
+
+function IconEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [mode, setMode] = useState<IconMode>(modeOf(value));
+
+  function switchMode(m: IconMode) {
+    setMode(m);
+    if (m === 'auto') onChange('');
+    else if (m === 'none') onChange('none');
+    else if (m === 'emoji') onChange(modeOf(value) === 'emoji' ? value : '🔗');
+    else onChange(modeOf(value) === 'image' ? value : '');
+  }
+
+  return (
+    <div className="ed-iconpanel">
+      <Seg
+        value={mode}
+        onChange={switchMode}
+        options={[
+          { v: 'auto', label: 'Auto' },
+          { v: 'emoji', label: 'Emoji' },
+          { v: 'image', label: 'Image' },
+          { v: 'none', label: 'None' },
+        ]}
+      />
+      {mode === 'auto' && <small className="ed-hint-sm">Uses the website's own icon.</small>}
+      {mode === 'emoji' && (
+        <>
+          <div className="ed-emojis">
+            {EMOJIS.map((e) => (
+              <button key={e} type="button" className={e === value ? 'on' : ''} onClick={() => onChange(e)}>
+                {e}
+              </button>
+            ))}
+          </div>
+          <input
+            className="ed-input"
+            maxLength={8}
+            value={modeOf(value) === 'emoji' ? value : ''}
+            placeholder="or type any emoji"
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </>
+      )}
+      {mode === 'image' && (
+        <ImagePicker kind="thumb" value={modeOf(value) === 'image' ? value : ''} onChange={onChange} />
+      )}
+    </div>
+  );
+}
+
+function IconPreview({ icon }: { icon: string }) {
+  if (icon === 'none') return <span className="ed-iconprev">–</span>;
+  if (!icon) return <span className="ed-iconprev">🌐</span>;
+  if (isImageIcon(icon)) {
+    return (
+      <span className="ed-iconprev">
+        <img src={icon} alt="" />
+      </span>
+    );
+  }
+  return <span className="ed-iconprev">{icon}</span>;
+}
+
+function LinkRow({
+  link,
+  index,
+  count,
+  onChange,
+  onMove,
+  onRemove,
+}: {
+  link: SocialLink;
+  index: number;
+  count: number;
+  onChange: (patch: Partial<SocialLink>) => void;
+  onMove: (dir: -1 | 1) => void;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const icon = link.icon ?? '';
+  return (
+    <div className={`ed-linkrow-wrap${link.hidden ? ' off' : ''}`}>
+      <div className="ed-linkrow">
+        <div className="ed-linkinputs">
+          <input
+            className="ed-input"
+            value={link.title}
+            maxLength={40}
+            placeholder="Title"
+            onChange={(e) => onChange({ title: e.target.value })}
+          />
+          <input
+            className={`ed-input${link.url && !validUrl(link.url) ? ' bad' : ''}`}
+            value={link.url}
+            placeholder="https://"
+            onChange={(e) => onChange({ url: e.target.value })}
+          />
+          <button type="button" className="ed-iconbtn" onClick={() => setOpen((o) => !o)}>
+            <IconPreview icon={icon} /> Icon {open ? '▴' : '▾'}
+          </button>
+        </div>
+        <div className="ed-linkbtns">
+          <button type="button" title="Move up" onClick={() => onMove(-1)} disabled={index === 0}>
+            ↑
+          </button>
+          <button type="button" title="Move down" onClick={() => onMove(1)} disabled={index === count - 1}>
+            ↓
+          </button>
+          <button
+            type="button"
+            title={link.hidden ? 'Show link' : 'Hide link'}
+            onClick={() => onChange({ hidden: !link.hidden })}
+          >
+            {link.hidden ? '◌' : '●'}
+          </button>
+          <button type="button" title="Delete" onClick={onRemove}>
+            ✕
+          </button>
+        </div>
+      </div>
+      {open && <IconEditor value={icon} onChange={(v) => onChange({ icon: v })} />}
+    </div>
+  );
+}
+
+function LinkList({
+  links,
+  onChange,
+  quick,
+}: {
+  links: SocialLink[];
+  onChange: (links: SocialLink[]) => void;
+  quick?: boolean;
+}) {
+  const add = (title = '', url = '') => onChange([...links, { id: uid(), title, url, icon: '' }]);
+  return (
+    <>
+      {quick && (
+        <div className="ed-field">
+          <span>Quick add</span>
+          <div className="ed-chips">
+            {QUICK.map(([title, url]) => (
+              <button key={title} type="button" disabled={links.length >= MAX_LINKS} onClick={() => add(title, url)}>
+                + {title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="ed-field">
+        <span>
+          Links <em>{links.length}/{MAX_LINKS}</em>
+        </span>
+        {links.length === 0 && (
+          <div className="ed-hint">No links yet.{quick ? ' Use quick add or the button below.' : ''}</div>
+        )}
+        {links.map((l, i) => (
+          <LinkRow
+            key={l.id}
+            link={l}
+            index={i}
+            count={links.length}
+            onChange={(patch) => onChange(links.map((x, j) => (j === i ? { ...x, ...patch } : x)))}
+            onMove={(dir) => onChange(move(links, i, dir))}
+            onRemove={() => onChange(links.filter((_, j) => j !== i))}
+          />
+        ))}
+        <button type="button" className="ed-btn" onClick={() => add()} disabled={links.length >= MAX_LINKS}>
+          + Add link
+        </button>
+      </div>
+    </>
+  );
+}
+
+/* ---------------- gallery + showcase ---------------- */
+
+function GalleryEditor({
+  images,
+  onChange,
+}: {
+  images: GalleryImage[];
+  onChange: (images: GalleryImage[]) => void;
+}) {
+  const file = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [url, setUrl] = useState('');
+
+  async function upload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (!files.length) return;
+    setBusy(true);
+    setErr('');
+    const added: GalleryImage[] = [];
+    try {
+      for (const f of files) {
+        if (images.length + added.length >= MAX_GALLERY) break;
+        added.push({ id: uid(), src: await processImage(f, 'gallery'), caption: '' });
+      }
+      onChange([...images, ...added]);
+    } catch (er) {
+      setErr((er as Error).message);
+      if (added.length) onChange([...images, ...added]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function addUrl() {
+    const u = url.trim();
+    if (!/^https:\/\//i.test(u)) return setErr('Image URLs must start with https://');
+    setErr('');
+    onChange([...images, { id: uid(), src: u, caption: '' }]);
+    setUrl('');
+  }
+
+  const full = images.length >= MAX_GALLERY;
+  return (
+    <div className="ed-field">
+      <span>
+        Photos <em>{images.length}/{MAX_GALLERY}</em>
+      </span>
+      <div className="ed-addrow">
+        <button type="button" className="ed-btn" onClick={() => file.current?.click()} disabled={busy || full}>
+          {busy ? 'Processing…' : 'Upload photos'}
+        </button>
+        <input
+          className="ed-input"
+          placeholder="…or paste an image URL"
+          value={url}
+          disabled={full}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && addUrl()}
+        />
+        <button type="button" className="ed-btn" onClick={addUrl} disabled={!url || full}>
+          Add
+        </button>
+      </div>
+      <input ref={file} type="file" accept="image/*" multiple hidden onChange={upload} />
+      {err && <div className="ed-err-sm">{err}</div>}
+      {images.length === 0 && <div className="ed-hint">No photos yet.</div>}
+      <div className="ed-gallist">
+        {images.map((g, i) => (
+          <div className="ed-galitem" key={g.id}>
+            <div className="ed-thumb" style={{ backgroundImage: `url(${JSON.stringify(g.src)})` }} />
+            <input
+              className="ed-input"
+              placeholder="Caption"
+              maxLength={60}
+              value={g.caption}
+              onChange={(e) =>
+                onChange(images.map((x, j) => (j === i ? { ...x, caption: e.target.value } : x)))
+              }
+            />
+            <div className="ed-galbtns">
+              <button type="button" disabled={i === 0} onClick={() => onChange(move(images, i, -1))}>
+                ←
+              </button>
+              <button type="button" disabled={i === images.length - 1} onClick={() => onChange(move(images, i, 1))}>
+                →
+              </button>
+              <button type="button" onClick={() => onChange(images.filter((_, j) => j !== i))}>
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ShowcaseEditor({
+  embeds,
+  onChange,
+}: {
+  embeds: { id: string; url: string }[];
+  onChange: (embeds: { id: string; url: string }[]) => void;
+}) {
+  const [url, setUrl] = useState('');
+  const [err, setErr] = useState('');
+
+  function add() {
+    const u = url.trim();
+    if (!parseEmbed(u)) {
+      return setErr("That link isn't supported. Use YouTube, Instagram, Spotify, TikTok or Vimeo.");
+    }
+    setErr('');
+    onChange([...embeds, { id: uid(), url: u }]);
+    setUrl('');
+  }
+
+  return (
+    <div className="ed-field">
+      <span>
+        Items <em>{embeds.length}/{MAX_EMBEDS}</em>
+      </span>
+      <div className="ed-addrow">
+        <input
+          className="ed-input"
+          placeholder="Paste a YouTube, Instagram, Spotify, TikTok or Vimeo link"
+          value={url}
+          disabled={embeds.length >= MAX_EMBEDS}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && add()}
+        />
+        <button type="button" className="ed-btn" onClick={add} disabled={!url || embeds.length >= MAX_EMBEDS}>
+          Add
+        </button>
+      </div>
+      {err && <div className="ed-err-sm">{err}</div>}
+      {embeds.length === 0 && (
+        <div className="ed-hint">
+          Nothing here yet. Paste a link to a video, post or song and it shows up on your page.
+        </div>
+      )}
+      {embeds.map((e, i) => {
+        const info = parseEmbed(e.url);
+        return (
+          <div className="ed-embedrow" key={e.id}>
+            <span className={`ed-badge${info ? '' : ' bad'}`}>{info?.provider ?? 'unsupported'}</span>
+            <input
+              className="ed-input"
+              value={e.url}
+              onChange={(ev) =>
+                onChange(embeds.map((x, j) => (j === i ? { ...x, url: ev.target.value } : x)))
+              }
+            />
+            <div className="ed-linkbtns" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+              <button type="button" disabled={i === 0} onClick={() => onChange(move(embeds, i, -1))}>
+                ↑
+              </button>
+              <button type="button" disabled={i === embeds.length - 1} onClick={() => onChange(move(embeds, i, 1))}>
+                ↓
+              </button>
+              <button type="button" onClick={() => onChange(embeds.filter((_, j) => j !== i))}>
+                ✕
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ---------------- editor ---------------- */
 
-type Tab = 'profile' | 'links' | 'look';
+type Tab = 'profile' | 'pages' | 'look';
+
+const KIND_LABEL: Record<PageKind, string> = {
+  links: 'Links page',
+  gallery: 'Photo gallery',
+  showcase: 'Showcase',
+};
 
 export default function Editor() {
+  const nav = useNavigate();
   const [phase, setPhase] = useState<'loading' | 'out' | 'in'>('loading');
   const [me, setMe] = useState<Me | null>(null);
   const [draft, setDraft] = useState<SocialProfile>(EMPTY);
@@ -186,6 +580,8 @@ export default function Editor() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>('profile');
+  const [pageSel, setPageSel] = useState(0); // 0 = home, n = extra page n-1
+  const [adding, setAdding] = useState(false);
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
   const [copied, setCopied] = useState(false);
   const { w, h } = useViewport();
@@ -212,11 +608,10 @@ export default function Editor() {
   }
 
   useEffect(() => {
-    document.title = 'Edit your page';
+    document.title = 'Edit your page · social';
     load();
   }, []);
 
-  // warn before closing with unsaved changes
   useEffect(() => {
     if (!dirty || phase !== 'in') return;
     const f = (e: BeforeUnloadEvent) => e.preventDefault();
@@ -224,50 +619,43 @@ export default function Editor() {
     return () => window.removeEventListener('beforeunload', f);
   }, [dirty, phase]);
 
-  // auto-hide "Saved" message
   useEffect(() => {
     if (!msg?.ok) return;
     const t = setTimeout(() => setMsg(null), 2500);
     return () => clearTimeout(t);
   }, [msg]);
 
-  async function onGoogle(credential: string) {
-    try {
-      await api.login(credential);
-      await load();
-    } catch (e) {
-      setMsg({ ok: false, text: (e as Error).message });
-    }
-  }
-
   async function signOut() {
     await api.logout().catch(() => {});
-    setMe(null);
-    setDraft(EMPTY);
-    setSaved('');
-    setSavedName(null);
-    setPhase('out');
+    nav('/', { replace: true });
   }
 
   const set = (patch: Partial<SocialProfile>) => setDraft((d) => ({ ...d, ...patch }));
   const setTheme = (patch: Partial<Theme>) =>
     setDraft((d) => ({ ...d, theme: { ...d.theme, ...patch } }));
-  const setLink = (i: number, patch: Partial<SocialLink>) =>
-    setDraft((d) => ({ ...d, links: d.links.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
-  const move = (i: number, dir: -1 | 1) =>
-    setDraft((d) => {
-      const j = i + dir;
-      if (j < 0 || j >= d.links.length) return d;
-      const links = [...d.links];
-      [links[i], links[j]] = [links[j], links[i]];
-      return { ...d, links };
+  const setPage = (i: number, patch: Partial<SocialPage>) =>
+    setDraft((d) => ({ ...d, pages: d.pages.map((p, j) => (j === i ? { ...p, ...patch } : p)) }));
+
+  function addPage(kind: PageKind) {
+    const title = { links: 'More', gallery: 'Gallery', showcase: 'Showcase' }[kind];
+    set({
+      pages: [...draft.pages, { id: uid(), title, kind, links: [], images: [], embeds: [] }],
     });
-  const remove = (i: number) => set({ links: draft.links.filter((_, j) => j !== i) });
-  const add = (title = '', url = '') =>
-    set({ links: [...draft.links, { id: crypto.randomUUID(), title, url }] });
+    setPageSel(draft.pages.length + 1);
+    setAdding(false);
+  }
+
+  function removePage(i: number) {
+    if (!window.confirm(`Delete the page "${draft.pages[i].title}"? This can't be undone after you save.`)) return;
+    set({ pages: draft.pages.filter((_, j) => j !== i) });
+    setPageSel(0);
+  }
 
   async function save() {
     if (busy) return;
+    if (JSON.stringify(draft).length > MAX_BYTES) {
+      return setMsg({ ok: false, text: 'Your page is too large. Remove or shrink some images.' });
+    }
     setBusy(true);
     setMsg(null);
     try {
@@ -283,7 +671,6 @@ export default function Editor() {
     }
   }
 
-  // Ctrl/Cmd+S
   const saveRef = useRef(save);
   saveRef.current = save;
   useEffect(() => {
@@ -315,25 +702,12 @@ export default function Editor() {
       </div>
     );
   }
-
-  if (phase === 'out') {
-    return (
-      <div className="sl-root">
-        <div className="sl-card sl-signin">
-          <h2>Create your link page</h2>
-          <p>One page for all your important links. Sign in to make yours.</p>
-          <GoogleSignIn onCredential={onGoogle} />
-          {msg && <div className="ed-err-sm">{msg.text}</div>}
-        </div>
-      </div>
-    );
-  }
+  if (phase === 'out') return <Navigate to="/login" replace />;
 
   const t = draft.theme;
-  const scale = wide
-    ? Math.min(0.82, (h - 48) / PHONE_H)
-    : Math.min(1, (w - 32) / PHONE_W);
-
+  const sel = Math.min(pageSel, draft.pages.length);
+  const curPage = sel > 0 ? draft.pages[sel - 1] : null;
+  const scale = wide ? Math.min(0.82, (h - 100) / PHONE_H) : Math.min(1, (w - 32) / PHONE_W);
   const showForm = wide || pane === 'edit';
   const showPreview = wide || pane === 'preview';
 
@@ -341,16 +715,18 @@ export default function Editor() {
     <div className="sl-root sl-editor-root">
       <header className="ed-top">
         <div className="ed-top-left">
-          <b>Your page</b>
+          <Link className="sl-logo-link" to="/" aria-label="Home">
+            <Logo size={28} />
+          </Link>
           {savedName && (
-            <Link className="ed-url" to={`/${savedName}`} target="_blank">
-              {location.host}/{savedName}
-            </Link>
-          )}
-          {savedName && (
-            <button className="ed-link-btn" onClick={copyLink}>
-              {copied ? 'Copied!' : 'Copy link'}
-            </button>
+            <>
+              <a className="ed-btn sm" href={`/${savedName}`} target="_blank" rel="noopener">
+                View my site ↗
+              </a>
+              <button className="ed-link-btn" onClick={copyLink}>
+                {copied ? 'Copied!' : 'Copy link'}
+              </button>
+            </>
           )}
         </div>
         <div className="ed-top-right">
@@ -385,7 +761,7 @@ export default function Editor() {
               {(
                 [
                   ['profile', 'Profile'],
-                  ['links', 'Links'],
+                  ['pages', 'Pages'],
                   ['look', 'Appearance'],
                 ] as [Tab, string][]
               ).map(([k, label]) => (
@@ -444,11 +820,7 @@ export default function Editor() {
                     onChange={(v) => set({ avatarUrl: v })}
                     extra={
                       me?.picture && draft.avatarUrl !== me.picture ? (
-                        <button
-                          type="button"
-                          className="ed-link-btn"
-                          onClick={() => set({ avatarUrl: me.picture! })}
-                        >
+                        <button type="button" className="ed-link-btn" onClick={() => set({ avatarUrl: me.picture! })}>
                           Use Google photo
                         </button>
                       ) : null
@@ -471,82 +843,86 @@ export default function Editor() {
               </div>
             )}
 
-            {tab === 'links' && (
+            {tab === 'pages' && (
               <div className="ed-section">
                 <div className="ed-field">
-                  <span>Quick add</span>
-                  <div className="ed-chips">
-                    {QUICK.map(([title, url]) => (
-                      <button
-                        key={title}
-                        type="button"
-                        disabled={draft.links.length >= 30}
-                        onClick={() => add(title, url)}
-                      >
-                        + {title}
+                  <span>
+                    Pages <em>{draft.pages.length + 1}/{MAX_PAGES + 1}</em>
+                  </span>
+                  <div className="ed-pages">
+                    <button className={sel === 0 ? 'on' : ''} onClick={() => setPageSel(0)}>
+                      {draft.homeTitle || 'Links'} (home)
+                    </button>
+                    {draft.pages.map((p, i) => (
+                      <button key={p.id} className={sel === i + 1 ? 'on' : ''} onClick={() => setPageSel(i + 1)}>
+                        {p.title}
                       </button>
                     ))}
+                    <button className="add" disabled={draft.pages.length >= MAX_PAGES} onClick={() => setAdding((a) => !a)}>
+                      + Add page
+                    </button>
                   </div>
+                  <small>
+                    Visitors switch between pages with tabs at the bottom of your phone screen.
+                  </small>
                 </div>
 
-                <div className="ed-field">
-                  <span>
-                    Your links <em>{draft.links.length}/30</em>
-                  </span>
-                  {draft.links.length === 0 && (
-                    <div className="ed-hint">No links yet. Use quick add or the button below.</div>
-                  )}
-                  {draft.links.map((l, i) => (
-                    <div className={`ed-linkrow${l.hidden ? ' off' : ''}`} key={l.id}>
-                      <div className="ed-linkinputs">
-                        <input
-                          className="ed-input"
-                          value={l.title}
-                          maxLength={40}
-                          placeholder="Title"
-                          onChange={(e) => setLink(i, { title: e.target.value })}
-                        />
-                        <input
-                          className={`ed-input${l.url && !validUrl(l.url) ? ' bad' : ''}`}
-                          value={l.url}
-                          placeholder="https://"
-                          onChange={(e) => setLink(i, { url: e.target.value })}
-                        />
-                      </div>
-                      <div className="ed-linkbtns">
-                        <button type="button" title="Move up" onClick={() => move(i, -1)} disabled={i === 0}>
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          title="Move down"
-                          onClick={() => move(i, 1)}
-                          disabled={i === draft.links.length - 1}
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          title={l.hidden ? 'Show link' : 'Hide link'}
-                          onClick={() => setLink(i, { hidden: !l.hidden })}
-                        >
-                          {l.hidden ? '◌' : '●'}
-                        </button>
-                        <button type="button" title="Delete" onClick={() => remove(i)}>
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="ed-btn"
-                    onClick={() => add()}
-                    disabled={draft.links.length >= 30}
-                  >
-                    + Add link
-                  </button>
-                </div>
+                {adding && (
+                  <div className="ed-addpage">
+                    <button className="ed-btn" onClick={() => addPage('links')}>
+                      🔗 Links page
+                    </button>
+                    <button className="ed-btn" onClick={() => addPage('gallery')}>
+                      🖼️ Photo gallery
+                    </button>
+                    <button className="ed-btn" onClick={() => addPage('showcase')}>
+                      🎬 Showcase (videos, posts, music)
+                    </button>
+                  </div>
+                )}
+
+                {!curPage && (
+                  <>
+                    <label className="ed-field">
+                      <span>Tab name</span>
+                      <input
+                        className="ed-input"
+                        maxLength={16}
+                        value={draft.homeTitle}
+                        onChange={(e) => set({ homeTitle: e.target.value })}
+                      />
+                    </label>
+                    <LinkList links={draft.links} onChange={(links) => set({ links })} quick />
+                  </>
+                )}
+
+                {curPage && (
+                  <>
+                    <label className="ed-field">
+                      <span>
+                        Tab name <em>{KIND_LABEL[curPage.kind]}</em>
+                      </span>
+                      <input
+                        className="ed-input"
+                        maxLength={16}
+                        value={curPage.title}
+                        onChange={(e) => setPage(sel - 1, { title: e.target.value })}
+                      />
+                    </label>
+                    {curPage.kind === 'links' && (
+                      <LinkList links={curPage.links} onChange={(links) => setPage(sel - 1, { links })} quick />
+                    )}
+                    {curPage.kind === 'gallery' && (
+                      <GalleryEditor images={curPage.images} onChange={(images) => setPage(sel - 1, { images })} />
+                    )}
+                    {curPage.kind === 'showcase' && (
+                      <ShowcaseEditor embeds={curPage.embeds} onChange={(embeds) => setPage(sel - 1, { embeds })} />
+                    )}
+                    <button className="ed-link-btn ed-danger" onClick={() => removePage(sel - 1)}>
+                      Delete this page
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -557,28 +933,21 @@ export default function Editor() {
                   <div className="ed-presets">
                     {PRESETS.map((p) => {
                       const pt = { ...DEFAULT_THEME, ...p.theme } as Theme;
+                      const bar = {
+                        background: pt.btnStyle === 'fill' ? pt.btnColor : 'transparent',
+                        border: `2px solid ${pt.btnColor}`,
+                        borderRadius: pt.btnShape === 'pill' ? 99 : pt.btnShape === 'square' ? 2 : 6,
+                      };
                       return (
                         <button
                           key={p.name}
                           type="button"
                           className="ed-preset"
-                          onClick={() => setTheme(pt)}
+                          onClick={() => setTheme({ ...pt, avatarShape: t.avatarShape })}
                         >
                           <div className="ed-preset-box" style={{ background: bgCss(pt) }}>
-                            <i
-                              style={{
-                                background: pt.btnStyle === 'fill' ? pt.btnColor : 'transparent',
-                                border: `2px solid ${pt.btnColor}`,
-                                borderRadius: pt.btnShape === 'pill' ? 99 : pt.btnShape === 'square' ? 2 : 6,
-                              }}
-                            />
-                            <i
-                              style={{
-                                background: pt.btnStyle === 'fill' ? pt.btnColor : 'transparent',
-                                border: `2px solid ${pt.btnColor}`,
-                                borderRadius: pt.btnShape === 'pill' ? 99 : pt.btnShape === 'square' ? 2 : 6,
-                              }}
-                            />
+                            <i style={bar} />
+                            <i style={bar} />
                           </div>
                           <small>{p.name}</small>
                         </button>
@@ -703,7 +1072,7 @@ export default function Editor() {
         {showPreview && (
           <div className="ed-preview">
             <PhoneFrame scale={scale}>
-              <ProfileScreen profile={draft} preview />
+              <ProfileScreen profile={draft} preview activePage={sel} onPageChange={setPageSel} />
             </PhoneFrame>
           </div>
         )}

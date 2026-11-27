@@ -2,8 +2,16 @@
 
 Linktree-style pages on **social.jrofficial.org**.
 
-- `/edit` — sign in with Google, build your page with a live phone preview
-- `/<username>` — the public phone page
+| Route | What |
+|---|---|
+| `/` | Home: intro, sign up / log in |
+| `/signup`, `/login` | Google OAuth |
+| `/edit` | Editor (redirects to `/login` when signed out) |
+| `/<username>` | Public phone page. Share + "Create your own" sit outside the phone |
+
+Features: multiple pages per profile (links, photo gallery, showcase with YouTube / Instagram / Spotify / TikTok / Vimeo embeds), per-link icons (auto favicon, emoji, uploaded thumbnail), themes, gradients, background images, fonts, button styles.
+
+Logo: `public/logo.svg` (+ `logo-512.png`, `favicon.svg`, `apple-touch-icon.png`).
 
 Stack: Vite + React + TypeScript, Vercel serverless functions (`/api`), MongoDB Atlas, Google sign-in. All free tier.
 
@@ -59,5 +67,7 @@ npx vercel dev               # NOT plain `vite`, so /api works
 Atlas -> collection `social_profiles` -> set `disabled: true` on a doc. Their page 404s right away.
 
 ## Notes
+- Images are resized in the browser and stored inline in Mongo (avatar ~120 KB max, gallery photo ~70 KB, link thumbnail ~30 KB, background ~700 KB). A whole page is capped at ~3.8 MB (Vercel's request limit is 4.5 MB).
+- Embeds only work for the whitelisted providers (`api/_lib/embed.ts`, same file in `src/social/embed.ts`, keep them identical).
 - Links must be https. Usernames: 3-20 chars of a-z 0-9 _; reserved words (`admin`, `edit`, `api`...) are blocked in `api/_lib/validate.ts`.
 - Sessions are an HttpOnly cookie (30 days), signed with `SESSION_SECRET`.

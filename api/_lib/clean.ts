@@ -35,3 +35,23 @@ export function cleanImage(raw: unknown, maxLen: number): string | null {
   }
   return cleanUrl(s, true);
 }
+
+export const THUMB_MAX = 30_000; // link thumbnails
+export const GALLERY_MAX = 70_000; // gallery photos
+
+/**
+ * Link icon: '' = auto favicon, 'none', an emoji, or a small image
+ * (https URL / uploaded data URL). Returns null if invalid.
+ */
+export function cleanIcon(raw: unknown): string | null {
+  if (raw === undefined || raw === null) return '';
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s || s === 'none') return s;
+  if (s.startsWith('data:') || /^https?:\/\//i.test(s)) {
+    const r = cleanImage(s, THUMB_MAX);
+    return r ? r : null;
+  }
+  if (s.length <= 16 && /\p{Extended_Pictographic}/u.test(s)) return s;
+  return null;
+}

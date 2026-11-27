@@ -1,6 +1,8 @@
-import { bgCss, DEFAULT_THEME, PRESETS } from '../themes';
+import { bgCss, DEFAULT_THEME, FONTS, GRADIENTS, PRESETS } from '../themes';
 import type { Theme } from '../types';
 import { Color, Field, ImagePicker, Seg } from './controls';
+
+const FONT_LABELS: Record<string, string> = { sans: 'Inter', serif: 'Playfair', mono: 'Mono', rounded: 'Nunito', grotesk: 'Grotesk', poppins: 'Poppins', display: 'DM Serif', script: 'Caveat' };
 
 export default function AppearanceTab({
   t,
@@ -47,6 +49,20 @@ export default function AppearanceTab({
         {t.bgType === 'gradient' && (
           <>
             <Color label="End colour" value={t.bg2} onChange={(v) => setTheme({ bg2: v })} />
+            <div className="ed-field">
+              <span>Quick gradients</span>
+              <div className="ed-grads">
+                {GRADIENTS.map(([a, b, ang]) => (
+                  <button
+                    key={a + b}
+                    type="button"
+                    aria-label={`${a} to ${b}`}
+                    style={{ background: `linear-gradient(${ang}deg, ${a}, ${b})` }}
+                    onClick={() => setTheme({ bg1: a, bg2: b, bgAngle: ang })}
+                  />
+                ))}
+              </div>
+            </div>
             <label className="ed-range">
               <span>Angle <em>{t.bgAngle}°</em></span>
               <input type="range" min={0} max={360} value={t.bgAngle} onChange={(e) => setTheme({ bgAngle: Number(e.target.value) })} />
@@ -63,17 +79,26 @@ export default function AppearanceTab({
             <Color label="Fallback colour" value={t.bg1} onChange={(v) => setTheme({ bg1: v })} />
           </>
         )}
+        <Field label="Pattern">
+          <Seg
+            value={t.bgPattern}
+            onChange={(v) => setTheme({ bgPattern: v })}
+            options={[{ v: 'none', label: 'None' }, { v: 'dots', label: 'Dots' }, { v: 'grid', label: 'Grid' }, { v: 'lines', label: 'Lines' }, { v: 'noise', label: 'Grain' }]}
+          />
+        </Field>
       </div>
 
       <div className="ed-group">
         <h4>Text</h4>
         <Color label="Text colour" value={t.textColor} onChange={(v) => setTheme({ textColor: v })} />
         <Field label="Font">
-          <Seg
-            value={t.font}
-            onChange={(v) => setTheme({ font: v })}
-            options={[{ v: 'sans', label: 'Sans' }, { v: 'serif', label: 'Serif' }, { v: 'rounded', label: 'Rounded' }, { v: 'mono', label: 'Mono' }]}
-          />
+          <div className="ed-fonts">
+            {(Object.keys(FONTS) as (keyof typeof FONTS)[]).map((f) => (
+              <button key={f} type="button" className={f === t.font ? 'on' : ''} style={{ fontFamily: FONTS[f] }} onClick={() => setTheme({ font: f })}>
+                Aa <small>{FONT_LABELS[f]}</small>
+              </button>
+            ))}
+          </div>
         </Field>
       </div>
 

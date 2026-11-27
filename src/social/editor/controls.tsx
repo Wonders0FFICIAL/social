@@ -246,7 +246,10 @@ export function IconGrid({ value, onPick }: { value?: string; onPick: (name: str
 
 /** Link icon: auto | none | icon | uploaded image */
 export function LinkIconPicker({ value, url, onChange }: { value: string; url: string; onChange: (v: string) => void }) {
-  const mode = value === 'none' ? 'none' : iconName(value) ? 'icon' : isImageIcon(value) ? 'image' : 'auto';
+  const derived = value === 'none' ? 'none' : iconName(value) ? 'icon' : isImageIcon(value) ? 'image' : 'auto';
+  // 'image' mode has an empty value until a file is picked, so remember the choice locally
+  const [wantImage, setWantImage] = useState(false);
+  const mode = derived === 'auto' && wantImage ? 'image' : derived;
   const [open, setOpen] = useState(false);
   const auto = autoIconFor(url);
 
@@ -256,12 +259,13 @@ export function LinkIconPicker({ value, url, onChange }: { value: string; url: s
       <Seg
         value={mode}
         onChange={(m) => {
+          setWantImage(m === 'image');
           if (m === 'auto') onChange('');
           else if (m === 'none') onChange('none');
           else if (m === 'icon') {
             onChange(`ic:${auto ?? 'link'}`);
             setOpen(true);
-          } else onChange('');
+          } else if (derived !== 'image') onChange('');
         }}
         options={[
           { v: 'auto', label: 'Auto' },
@@ -282,7 +286,16 @@ export function LinkIconPicker({ value, url, onChange }: { value: string; url: s
           {open && <IconGrid value={iconName(value)!} onPick={(n) => onChange(`ic:${n}`)} />}
         </>
       )}
-      {mode === 'image' && <ImagePicker kind="thumb" value={isImageIcon(value) ? value : ''} onChange={onChange} />}
+      {mode === 'image' && (
+        <ImagePicker
+          kind="thumb"
+          value={isImageIcon(value) ? value : ''}
+          onChange={(v) => {
+            onChange(v);
+            if (!v) setWantImage(true);
+          }}
+        />
+      )}
     </div>
   );
 }

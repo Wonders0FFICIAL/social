@@ -6,6 +6,14 @@ export interface EmbedInfo {
   src: string;
   /** fixed iframe height in px; undefined = use 16:9 */
   height?: number;
+  /** max width in px for narrow (portrait) embeds; centred in the phone */
+  width?: number;
+  /** portrait 9:16 video (YouTube Shorts) */
+  vertical?: boolean;
+  /** not embeddable: render as a link card instead (e.g. an Instagram profile) */
+  card?: boolean;
+  /** public page the embed points to */
+  href?: string;
   thumb?: string;
 }
 
@@ -35,6 +43,9 @@ export function parseEmbed(raw: string): EmbedInfo | null {
       return {
         provider: 'youtube',
         id,
+        vertical: parts[0] === 'shorts',
+        width: parts[0] === 'shorts' ? 270 : undefined,
+        href: `https://www.youtube.com/watch?v=${id}`,
         src: `https://www.youtube-nocookie.com/embed/${id}`,
         thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
       };
@@ -42,7 +53,7 @@ export function parseEmbed(raw: string): EmbedInfo | null {
     return null;
   }
 
-  if (host === 'instagram.com') {
+  if (host === 'instagram.com' || host === 'instagr.am') {
     const i = parts.findIndex((p) => ['p', 'reel', 'reels', 'tv'].includes(p));
     const id = i >= 0 ? parts[i + 1] : undefined;
     if (id && /^[\w-]{5,}$/.test(id)) {
@@ -51,8 +62,14 @@ export function parseEmbed(raw: string): EmbedInfo | null {
         provider: 'instagram',
         id,
         src: `https://www.instagram.com/${kind}/${id}/embed`,
-        height: 560,
+        height: kind === 'reel' || kind === 'tv' ? 640 : 600,
+        width: 360,
+        href: `https://www.instagram.com/${kind}/${id}/`,
       };
+    }
+    // profile link: can't be embedded, shown as a follow card
+    if (parts.length === 1 && /^[A-Za-z0-9._]{1,30}$/.test(parts[0]) && !['explore', 'accounts', 'direct', 'stories', 'p', 'reel', 'reels'].includes(parts[0])) {
+      return { provider: 'instagram', id: parts[0], src: '', card: true, href: `https://www.instagram.com/${parts[0]}/` };
     }
     return null;
   }
@@ -79,7 +96,7 @@ export function parseEmbed(raw: string): EmbedInfo | null {
     const i = parts.indexOf('video');
     const id = i >= 0 ? parts[i + 1] : undefined;
     if (id && /^\d{8,25}$/.test(id)) {
-      return { provider: 'tiktok', id, src: `https://www.tiktok.com/embed/v2/${id}`, height: 575 };
+      return { provider: 'tiktok', id, src: `https://www.tiktok.com/embed/v2/${id}`, height: 575, width: 340, href: `https://www.tiktok.com${u.pathname}` };
     }
     return null;
   }

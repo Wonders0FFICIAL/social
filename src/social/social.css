@@ -1168,3 +1168,13 @@ textarea.ed-input {
 .ad-report { padding: 14px 0; border-top: 1px solid var(--ed-border); }
 .ad-report:first-of-type { border-top: 0; }
 .ad-detail { margin: 6px 0 0; font-size: 13px; color: var(--ed-muted); }
+
+.ed-grads { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.ed-grads button { height: 34px; border: 1px solid var(--ed-border); border-radius: 8px; cursor: pointer; }
+.ed-grads button:hover { outline: 2px solid var(--ed-primary); }
+.ed-fonts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.ed-fonts button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px; border: 1px solid var(--ed-border); border-radius: 10px; font-size: 22px; line-height: 1; color: var(--ed-text); background: #fff; cursor: pointer; }
+.ed-fonts button small { font: 500 11px Inter, system-ui, sans-serif; color: var(--ed-muted); }
+.ed-fonts button.on { border-color: var(--ed-text); box-shadow: inset 0 0 0 1px var(--ed-text); }
+.ed-swatches { flex-wrap: wrap; }
+@media (max-width: 520px) { .ed-fonts { grid-template-columns: repeat(2, 1fr); } }

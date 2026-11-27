@@ -16,42 +16,65 @@ export function cleanUrl(raw: unknown, allowEmpty = false): string | null {
   }
 }
 
-const DATA_IMG = /^data:image\/(?:jpeg|webp|png);base64,[A-Za-z0-9+/]+=*$/;
+/** Link target: https URL, mailto: or tel:. */
+export function cleanLinkUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (/^mailto:/i.test(s)) {
+    return s.length <= 200 && /^mailto:[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(s) ? s : null;
+  }
+  if (/^tel:/i.test(s)) {
+    return /^tel:\+?[0-9()\-\s]{5,24}$/i.test(s) ? s : null;
+  }
+  return cleanUrl(s);
+}
 
-export const AVATAR_MAX = 120_000; // chars of data URL
-export const BG_MAX = 700_000;
+const DATA_IMG = /^data:image\/(?:jpeg|webp|png);base64,[A-Za-z0-9+/]+=*$/;
+/** Images we store ourselves (see api/social/img.ts). */
+export const OWN_IMG = /^\/api\/social\/img\?id=[a-f0-9]{24}$/;
+
+export const LEGACY_DATA_MAX = 700_000; // older pages stored small images inline
 
 /**
- * An image is either an https URL or a small base64 data URL (made by the
- * browser's resize step). Returns '' for empty, null for invalid.
+ * An image is an https URL, one of our own uploads, or (legacy) a small
+ * base64 data URL. Returns '' for empty, null for invalid.
  */
-export function cleanImage(raw: unknown, maxLen: number): string | null {
+export function cleanImage(raw: unknown): string | null {
   if (raw === undefined || raw === null) return '';
   if (typeof raw !== 'string') return null;
   const s = raw.trim();
   if (!s) return '';
+  if (OWN_IMG.test(s)) return s;
   if (s.startsWith('data:')) {
-    return s.length <= maxLen && DATA_IMG.test(s) ? s : null;
+    return s.length <= LEGACY_DATA_MAX && DATA_IMG.test(s) ? s : null;
   }
   return cleanUrl(s, true);
 }
 
-export const THUMB_MAX = 30_000; // link thumbnails
-export const GALLERY_MAX = 70_000; // gallery photos
+const ICON = /^ic:[a-z0-9-]{1,24}$/;
 
-/**
- * Link icon: '' = auto favicon, 'none', an emoji, or a small image
- * (https URL / uploaded data URL). Returns null if invalid.
- */
+/** '' = auto, 'none', 'ic:<name>' or an image. Null if invalid. */
 export function cleanIcon(raw: unknown): string | null {
   if (raw === undefined || raw === null) return '';
   if (typeof raw !== 'string') return null;
   const s = raw.trim();
   if (!s || s === 'none') return s;
-  if (s.startsWith('data:') || /^https?:\/\//i.test(s)) {
-    const r = cleanImage(s, THUMB_MAX);
-    return r ? r : null;
-  }
-  if (s.length <= 16 && /\p{Extended_Pictographic}/u.test(s)) return s;
-  return null;
+  if (ICON.test(s)) return s;
+  // old emoji icons are dropped to "auto"
+  if (s.length <= 16 && /\p{Extended_Pictographic}/u.test(s)) return '';
+  const img = cleanImage(s);
+  return img ? img : null;
+}
+
+/** Page icon: '' or ic:<name>. Anything else becomes ''. */
+export function cleanPageIcon(raw: unknown): string {
+  return typeof raw === 'string' && ICON.test(raw.trim()) ? raw.trim() : '';
+}
+
+/** Own image ids referenced anywhere inside a JSON-able value. */
+export function ownImageIds(value: unknown): Set<string> {
+  const ids = new Set<string>();
+  const re = /\/api\/social\/img\?id=([a-f0-9]{24})/g;
+  for (const m of JSON.stringify(value).matchAll(re)) ids.add(m[1]);
+  return ids;
 }

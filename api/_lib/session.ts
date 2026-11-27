@@ -8,6 +8,7 @@ export interface Session {
   sub: string;
   name?: string;
   picture?: string;
+  email?: string;
 }
 
 function key() {
@@ -28,7 +29,7 @@ export async function createSession(
   res: VercelResponse,
   s: Session,
 ) {
-  const token = await new SignJWT({ name: s.name, picture: s.picture })
+  const token = await new SignJWT({ name: s.name, picture: s.picture, email: s.email })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(s.sub)
     .setIssuedAt()
@@ -59,8 +60,18 @@ export async function getSession(req: VercelRequest): Promise<Session | null> {
       sub: payload.sub,
       name: typeof payload.name === 'string' ? payload.name : undefined,
       picture: typeof payload.picture === 'string' ? payload.picture : undefined,
+      email: typeof payload.email === 'string' ? payload.email : undefined,
     };
   } catch {
     return null;
   }
+}
+
+/** Admins are Google accounts listed in the ADMIN_EMAILS env var (comma separated). */
+export function isAdmin(s: Session | null): boolean {
+  const list = (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return !!s?.email && list.includes(s.email.toLowerCase());
 }

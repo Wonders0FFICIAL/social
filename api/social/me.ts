@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { profiles, toPublic } from '../_lib/db.js';
-import { getSession } from '../_lib/session.js';
+import { getSession, isAdmin } from '../_lib/session.js';
 
 // GET /api/social/me -> who am I + my profile (if I made one)
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -16,6 +16,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       signedIn: true,
       name: session.name,
       picture: session.picture,
+      admin: isAdmin(session),
+      disabled: doc?.disabled === true,
       profile: doc ? toPublic(doc) : null,
     });
   } catch (e) {

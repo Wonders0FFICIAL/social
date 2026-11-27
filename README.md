@@ -7,9 +7,10 @@ Linktree-style pages on **social.jrofficial.org**.
 | `/` | Home: intro, sign up / log in |
 | `/signup`, `/login` | Google OAuth |
 | `/edit` | Editor (redirects to `/login` when signed out) |
-| `/<username>` | Public phone page. Share + "Create your own" sit outside the phone |
+| `/admin` | Moderation (only emails in `ADMIN_EMAILS`) |
+| `/<username>` | Public phone page. Share, Report and "Create your own" sit outside the phone |
 
-Features: multiple pages per profile (links, photo gallery, showcase with YouTube / Instagram / Spotify / TikTok / Vimeo embeds), per-link icons (auto favicon, emoji, uploaded thumbnail), themes, gradients, background images, fonts, button styles.
+Features: block-based pages (links as button/card/banner, social icons, headings, text, galleries in 4 layouts, images, YouTube/Instagram/Spotify/TikTok/Vimeo embeds, contact forms, dividers), up to 25 pages per profile, Font Awesome icons, 16 themes, gradients, background images, fonts, shadows, 3 navigation styles, inbox for contact forms (CSV export), link-preview card for Discord/X/iMessage, report button + admin moderation page.
 
 Logo: `public/logo.svg` (+ `logo-512.png`, `favicon.svg`, `apple-touch-icon.png`).
 
@@ -46,6 +47,8 @@ The app creates the `social_profiles` collection and its indexes by itself.
 | `GOOGLE_CLIENT_ID` | the client ID |
 | `VITE_GOOGLE_CLIENT_ID` | the same client ID |
 | `SESSION_SECRET` | run `openssl rand -hex 32` and paste the result |
+| `ADMIN_EMAILS` | optional. Comma-separated Google emails allowed to open `/admin` |
+| `USER_IMAGE_QUOTA_MB` | optional. Image storage per user, default 20 |
 
 3. Deploy (redeploy after adding env vars).
 
@@ -64,10 +67,14 @@ npx vercel dev               # NOT plain `vite`, so /api works
 ---
 
 ## Moderation
-Atlas -> collection `social_profiles` -> set `disabled: true` on a doc. Their page 404s right away.
+Visitors tap **Report** on any page. Sign in with a Google account listed in `ADMIN_EMAILS` and open `/admin` to dismiss reports, disable / enable a page, or delete a user and their data. Disabled pages 404 and their owner can't edit.
 
 ## Notes
-- Images are resized in the browser and stored inline in Mongo (avatar ~120 KB max, gallery photo ~70 KB, link thumbnail ~30 KB, background ~700 KB). A whole page is capped at ~3.8 MB (Vercel's request limit is 4.5 MB).
+- Images are resized in the browser, uploaded to Mongo (`social_images`) and served from `/api/social/img` with long caching. Each user gets a quota (20 MB default) and unused images are cleaned up when you save. Atlas M0 has 512 MB total, so if the site grows, move images to Cloudflare R2 (free tier, 10 GB).
+- Limits are generous and only exist to stop abuse: 25 pages, 400 blocks per page, 300 items per gallery, 1.5 MB of page data.
+- Link previews: crawlers (Discord, X, Slack, etc.) are rewritten to `/api/page`, which returns meta tags pointing at `/api/og`, a generated 1200x630 card. Normal visitors get the plain SPA.
+- This uses 9 of the 12 serverless functions Vercel Hobby allows.
+- Contact forms are rate-limited per IP and have a hidden honeypot field.
 - Embeds only work for the whitelisted providers (`api/_lib/embed.ts`, same file in `src/social/embed.ts`, keep them identical).
-- Links must be https. Usernames: 3-20 chars of a-z 0-9 _; reserved words (`admin`, `edit`, `api`...) are blocked in `api/_lib/validate.ts`.
+- Links must be https (or mailto/tel). Usernames: 3-20 chars of a-z 0-9 _; reserved words are blocked in `api/_lib/validate.ts`.
 - Sessions are an HttpOnly cookie (30 days), signed with `SESSION_SECRET`.

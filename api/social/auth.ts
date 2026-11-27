@@ -36,6 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       sub: payload.sub,
       name: payload.name,
       picture: payload.picture,
+      email: payload.email_verified ? payload.email : undefined,
     });
     const doc = await (await profiles()).findOne({ googleSub: payload.sub });
     return res.status(200).json({ ok: true, profile: doc ? toPublic(doc) : null });

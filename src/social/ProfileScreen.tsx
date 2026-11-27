@@ -1,87 +1,116 @@
 import { useRef, useState } from 'react';
+import { FaCheck, FaPlay } from 'react-icons/fa6';
+import { api } from './api';
 import { parseEmbed } from './embed';
+import { autoIconFor, hostOf, Icon, iconName } from './icons';
 import { imageLayer, themeVars } from './themes';
-import type { SocialLink, SocialPage, SocialProfile } from './types';
+import type {
+  Block,
+  ContactBlock,
+  GalleryBlock,
+  LinkBlock,
+  SocialPage,
+  SocialProfile,
+} from './types';
 
-function hostOf(url: string): string {
-  try {
-    return new URL(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : `https://${url}`).hostname;
-  } catch {
-    return '';
-  }
-}
+/* ---------------- icons on links ---------------- */
 
-export const isImageIcon = (icon: string) => icon.startsWith('data:') || icon.startsWith('https://');
-
-function LinkIcon({ icon, url }: { icon: string; url: string }) {
+function LinkIcon({ icon, url, size = 20 }: { icon: string; url: string; size?: number }) {
+  const [broken, setBroken] = useState(false);
   if (icon === 'none') return null;
-  if (icon && isImageIcon(icon)) {
-    return (
-      <span className="sl-ico">
-        <img className="sl-thumb" src={icon} alt="" referrerPolicy="no-referrer" />
-      </span>
-    );
-  }
+
+  const nm = iconName(icon);
+  if (nm) return <span className="sl-ico"><Icon name={nm} size={size} /></span>;
   if (icon) {
     return (
       <span className="sl-ico">
-        <span className="sl-emoji">{icon}</span>
+        <img className="sl-thumb" src={icon} alt="" referrerPolicy="no-referrer" loading="lazy" />
       </span>
     );
   }
+  const auto = autoIconFor(url);
+  if (auto) return <span className="sl-ico"><Icon name={auto} size={size} /></span>;
+
   const host = hostOf(url);
-  return (
-    <span className="sl-ico">
-      {host && (
+  if (host && !broken) {
+    return (
+      <span className="sl-ico">
         <img
           className="sl-favicon"
           src={`https://www.google.com/s2/favicons?domain=${host}&sz=64`}
           alt=""
-          onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+          onError={() => setBroken(true)}
         />
-      )}
+      </span>
+    );
+  }
+  return <span className="sl-ico"><Icon name="link" size={size} /></span>;
+}
+
+/* ---------------- blocks ---------------- */
+
+interface Ctx {
+  preview?: boolean;
+  username: string;
+  open: (src: string, caption: string) => void;
+}
+
+const linkProps = (url: string, preview?: boolean) => ({
+  href: url || undefined,
+  target: url.startsWith('http') ? '_blank' : undefined,
+  rel: 'noopener noreferrer nofollow ugc',
+  onClick: preview ? (e: React.MouseEvent) => e.preventDefault() : undefined,
+});
+
+function LinkView({ b, ctx }: { b: LinkBlock; ctx: Ctx }) {
+  const text = (
+    <span className="sl-link-text">
+      <b>{b.title || 'Untitled'}</b>
+      {b.subtitle && <small>{b.subtitle}</small>}
     </span>
   );
-}
 
-function LinkList({ links, preview }: { links: SocialLink[]; preview?: boolean }) {
-  const shown = links.filter((l) => !l.hidden);
+  if (b.variant === 'featured') {
+    return (
+      <a
+        {...linkProps(b.url, ctx.preview)}
+        className={`sl-featured${b.image ? ' has-img' : ''}`}
+        style={b.image ? { backgroundImage: `linear-gradient(transparent 35%, rgba(0,0,0,.72)), url(${JSON.stringify(b.image)})` } : undefined}
+      >
+        <span className="sl-featured-body">
+          <LinkIcon icon={b.icon} url={b.url} size={22} />
+          {text}
+        </span>
+      </a>
+    );
+  }
+
+  if (b.variant === 'card') {
+    return (
+      <a {...linkProps(b.url, ctx.preview)} className="sl-cardlink">
+        {b.image && <img className="sl-card-img" src={b.image} alt="" loading="lazy" referrerPolicy="no-referrer" />}
+        <span className="sl-card-body">
+          <LinkIcon icon={b.icon} url={b.url} />
+          {text}
+        </span>
+      </a>
+    );
+  }
+
   return (
-    <div className="sl-links">
-      {shown.length === 0 && preview && <div className="sl-empty">Your links will show up here</div>}
-      {shown.map((l) => (
-        <a
-          key={l.id}
-          className={`sl-link${l.icon === 'none' ? ' noicon' : ''}`}
-          href={l.url || undefined}
-          target="_blank"
-          rel="noopener noreferrer nofollow ugc"
-          onClick={preview ? (e) => e.preventDefault() : undefined}
-        >
-          <LinkIcon icon={l.icon ?? ''} url={l.url} />
-          <span className="sl-link-title">{l.title || 'Untitled'}</span>
-        </a>
-      ))}
-    </div>
+    <a {...linkProps(b.url, ctx.preview)} className={`sl-link${b.icon === 'none' ? ' noicon' : ''}`}>
+      <LinkIcon icon={b.icon} url={b.url} />
+      {text}
+    </a>
   );
 }
 
-function Gallery({
-  page,
-  preview,
-  onOpen,
-}: {
-  page: SocialPage;
-  preview?: boolean;
-  onOpen: (src: string, caption: string) => void;
-}) {
-  if (page.images.length === 0) {
-    return preview ? <div className="sl-empty">Add photos to this gallery</div> : null;
-  }
+function GalleryView({ b, ctx }: { b: GalleryBlock; ctx: Ctx }) {
+  if (b.images.length === 0) return ctx.preview ? <div className="sl-empty">Add photos to this gallery</div> : null;
   return (
-    <div className="sl-gallery">
-      {page.images.map((g) => (
-        <button key={g.id} className="sl-gal-item" onClick={() => onOpen(g.src, g.caption)}>
+    <div className={`sl-gallery ${b.layout}`}>
+      {b.images.map((g) => (
+        <button key={g.id} className="sl-gal-item" onClick={() => ctx.open(g.src, g.caption)}>
           <img src={g.src} alt={g.caption} loading="lazy" referrerPolicy="no-referrer" />
           {g.caption && <span>{g.caption}</span>}
         </button>
@@ -90,10 +119,10 @@ function Gallery({
   );
 }
 
-function EmbedCard({ url }: { url: string }) {
+function EmbedCard({ url, preview }: { url: string; preview?: boolean }) {
   const info = parseEmbed(url);
   const [play, setPlay] = useState(false);
-  if (!info) return null;
+  if (!info) return preview ? <div className="sl-empty">Paste a video, post or song link</div> : null;
 
   const allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write';
   const sandbox = 'allow-scripts allow-same-origin allow-popups allow-presentation allow-forms';
@@ -103,11 +132,7 @@ function EmbedCard({ url }: { url: string }) {
     return (
       <button className="sl-embed sl-yt" onClick={() => setPlay(true)} aria-label="Play video">
         <img src={info.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" />
-        <span className="sl-play">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        </span>
+        <span className="sl-play"><FaPlay size={18} /></span>
       </button>
     );
   }
@@ -127,9 +152,163 @@ function EmbedCard({ url }: { url: string }) {
   );
 }
 
+function ContactForm({ b, ctx }: { b: ContactBlock; ctx: Ctx }) {
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [msg, setMsg] = useState('');
+  const [hp, setHp] = useState(''); // honeypot: real people never see or fill this
+  const [state, setState] = useState<'idle' | 'sending' | 'done'>('idle');
+  const [err, setErr] = useState('');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setErr('');
+    if (ctx.preview) {
+      setState('done');
+      setTimeout(() => setState('idle'), 2500);
+      return;
+    }
+    setState('sending');
+    try {
+      await api.contact({ username: ctx.username, blockId: b.id, email, name, message: msg, website: hp });
+      setState('done');
+      setEmail('');
+      setName('');
+      setMsg('');
+    } catch (er) {
+      setErr((er as Error).message);
+      setState('idle');
+    }
+  }
+
+  return (
+    <form className="sl-contact" onSubmit={submit}>
+      {b.title && <h3>{b.title}</h3>}
+      {b.subtitle && <p>{b.subtitle}</p>}
+      {state === 'done' ? (
+        <div className="sl-contact-done">
+          <FaCheck size={14} /> {b.success}
+        </div>
+      ) : (
+        <>
+          {b.mode === 'message' && (
+            <input
+              className="sl-field"
+              placeholder="Your name (optional)"
+              value={name}
+              maxLength={80}
+              onChange={(e) => setName(e.target.value)}
+            />
+          )}
+          <input
+            className="sl-field"
+            type="email"
+            required
+            placeholder="Your email"
+            value={email}
+            maxLength={200}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          {b.mode === 'message' && (
+            <textarea
+              className="sl-field"
+              required
+              rows={4}
+              placeholder="Your message"
+              value={msg}
+              maxLength={2000}
+              onChange={(e) => setMsg(e.target.value)}
+            />
+          )}
+          <input
+            className="sl-hp"
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            name="website"
+            value={hp}
+            onChange={(e) => setHp(e.target.value)}
+          />
+          {err && <div className="sl-contact-err">{err}</div>}
+          <button className="sl-submit" type="submit" disabled={state === 'sending'}>
+            {state === 'sending' ? 'Sending…' : b.button || 'Send'}
+          </button>
+        </>
+      )}
+    </form>
+  );
+}
+
+function BlockView({ b, ctx }: { b: Block; ctx: Ctx }) {
+  switch (b.type) {
+    case 'link':
+      return <LinkView b={b} ctx={ctx} />;
+
+    case 'heading':
+      return (
+        <div className={`sl-heading ${b.align}`}>
+          <h3>{b.text}</h3>
+          {b.subtitle && <p>{b.subtitle}</p>}
+        </div>
+      );
+
+    case 'text':
+      return <p className={`sl-text ${b.align}`}>{b.text}</p>;
+
+    case 'socials':
+      return (
+        <div className={`sl-socials ${b.style}`}>
+          {b.items.length === 0 && ctx.preview && <div className="sl-empty">Add social icons</div>}
+          {b.items.map((s) => {
+            const nm = iconName(s.icon) ?? autoIconFor(s.url) ?? 'link';
+            return (
+              <a key={s.id} {...linkProps(s.url, ctx.preview)} aria-label={nm} className="sl-social">
+                <Icon name={nm} size={20} />
+              </a>
+            );
+          })}
+        </div>
+      );
+
+    case 'gallery':
+      return <GalleryView b={b} ctx={ctx} />;
+
+    case 'image': {
+      if (!b.src) return ctx.preview ? <div className="sl-empty">Add an image</div> : null;
+      const img = (
+        <img
+          className="sl-image"
+          src={b.src}
+          alt={b.caption}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onClick={b.url ? undefined : () => ctx.open(b.src, b.caption)}
+        />
+      );
+      return (
+        <figure className="sl-figure">
+          {b.url ? <a {...linkProps(b.url, ctx.preview)}>{img}</a> : img}
+          {b.caption && <figcaption>{b.caption}</figcaption>}
+        </figure>
+      );
+    }
+
+    case 'embed':
+      return <EmbedCard url={b.url} preview={ctx.preview} />;
+
+    case 'divider':
+      return <div className={`sl-divider ${b.style}`} />;
+
+    case 'contact':
+      return <ContactForm b={b} ctx={ctx} />;
+  }
+}
+
+/* ---------------- screen ---------------- */
+
 interface Props {
   profile: SocialProfile;
-  /** In the editor preview, links shouldn't navigate away. */
+  /** In the editor preview, links shouldn't navigate away and forms don't send. */
   preview?: boolean;
   /** Controlled page index (0 = home). Optional. */
   activePage?: number;
@@ -145,9 +324,12 @@ export default function ProfileScreen({ profile, preview, activePage, onPageChan
   const [box, setBox] = useState<{ src: string; caption: string } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
-  const active = Math.min(activePage ?? inner, pages.length);
-  const page = active > 0 ? pages[active - 1] : null;
-  const hasTabs = pages.length > 0;
+  const visible = pages.map((p, i) => ({ p, i })).filter(({ p, i }) => i === 0 || !p.hidden);
+  let active = Math.min(activePage ?? inner, pages.length - 1);
+  if (active < 0 || !visible.some((v) => v.i === active)) active = 0;
+  const page: SocialPage | undefined = pages[active];
+  const isHome = active === 0;
+  const hasNav = visible.length > 1;
 
   function go(i: number) {
     setInner(i);
@@ -155,13 +337,30 @@ export default function ProfileScreen({ profile, preview, activePage, onPageChan
     scroller.current?.scrollTo({ top: 0 });
   }
 
+  const ctx: Ctx = {
+    preview,
+    username: profile.username,
+    open: (src, caption) => setBox({ src, caption }),
+  };
+  const blocks = (page?.blocks ?? []).filter((b) => !b.hidden);
+
   return (
-    <div className="sl-screen" data-btn={t.btnStyle} style={themeVars(t)}>
+    <div
+      className="sl-screen"
+      data-btn={t.btnStyle}
+      data-shadow={t.btnShadow}
+      data-anim={t.anim}
+      data-nav={t.nav}
+      style={themeVars(t)}
+    >
       {layer && <div className="sl-bgfx" style={layer} />}
 
-      <div ref={scroller} className={`sl-scroll${hasTabs ? ' has-tabs' : ''}`}>
-        {!page ? (
-          <>
+      <div
+        ref={scroller}
+        className={`sl-scroll${hasNav ? ` has-nav nav-${t.nav}` : ''}${isHome ? '' : ' sub'}`}
+      >
+        {isHome && (
+          <div className="sl-header" data-align={t.headerAlign}>
             {profile.avatarUrl ? (
               <img
                 className="sl-avatar"
@@ -176,36 +375,37 @@ export default function ProfileScreen({ profile, preview, activePage, onPageChan
             <h1 className="sl-name">{name}</h1>
             {profile.username && <div className="sl-handle">@{profile.username}</div>}
             {profile.bio && <p className="sl-bio">{profile.bio}</p>}
-            <LinkList links={profile.links} preview={preview} />
-          </>
-        ) : (
-          <>
-            <h2 className="sl-pagetitle">{page.title}</h2>
-            {page.kind === 'links' && <LinkList links={page.links} preview={preview} />}
-            {page.kind === 'gallery' && (
-              <Gallery page={page} preview={preview} onOpen={(src, caption) => setBox({ src, caption })} />
-            )}
-            {page.kind === 'showcase' && (
-              <div className="sl-showcase">
-                {page.embeds.length === 0 && preview && (
-                  <div className="sl-empty">Add videos, posts or songs to this page</div>
-                )}
-                {page.embeds.map((e) => (
-                  <EmbedCard key={e.id} url={e.url} />
-                ))}
-              </div>
-            )}
-          </>
+          </div>
         )}
+
+        <div className="sl-blocks" key={page?.id}>
+          {blocks.length === 0 && preview && (
+            <div className="sl-empty">This page is empty. Add blocks in the editor.</div>
+          )}
+          {blocks.map((b) => (
+            <BlockView key={b.id} b={b} ctx={ctx} />
+          ))}
+        </div>
       </div>
 
-      {hasTabs && (
-        <nav className="sl-tabs" aria-label="Pages">
-          {[profile.homeTitle || 'Links', ...pages.map((p) => p.title)].map((title, i) => (
-            <button key={i} className={i === active ? 'on' : ''} onClick={() => go(i)}>
-              {title}
-            </button>
-          ))}
+      {hasNav && (
+        <nav className={`sl-tabs ${t.nav}`} aria-label="Pages">
+          {visible.map(({ p, i }) => {
+            const nm = iconName(p.icon);
+            const showIcon = t.navLabels !== 'text' && (nm || t.navLabels === 'icons');
+            const showText = t.navLabels !== 'icons' || !nm;
+            return (
+              <button
+                key={p.id}
+                className={`${i === active ? 'on' : ''}${showIcon && showText ? ' stacked' : ''}`}
+                onClick={() => go(i)}
+                aria-label={p.title}
+              >
+                {showIcon && <Icon name={nm ?? 'link'} size={18} />}
+                {showText && <span>{p.title}</span>}
+              </button>
+            );
+          })}
         </nav>
       )}
 
@@ -218,3 +418,6 @@ export default function ProfileScreen({ profile, preview, activePage, onPageChan
     </div>
   );
 }
+
+/** Used by the editor's icon preview. */
+export const isImageIcon = (icon: string) => icon.startsWith('data:') || icon.startsWith('https://') || icon.startsWith('/api/');

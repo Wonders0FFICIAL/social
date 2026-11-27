@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { LuClapperboard, LuLayers, LuLink, LuMail, LuPalette, LuShare2 } from 'react-icons/lu';
 import { Link } from 'react-router-dom';
 import { api } from './api';
 import { DEMO_PROFILE } from './demo';
@@ -8,36 +9,12 @@ import ProfileScreen from './ProfileScreen';
 import { useViewport } from './useViewport';
 
 const FEATURES = [
-  {
-    icon: '🔗',
-    title: 'All your links, one page',
-    text: 'Add as many links as you like, with your own icons, emoji or thumbnails.',
-  },
-  {
-    icon: '📑',
-    title: 'Multiple pages',
-    text: 'Switch pages right inside your phone-style page: links, photo galleries and more.',
-  },
-  {
-    icon: '🎬',
-    title: 'Showcase your work',
-    text: 'Embed YouTube videos, Instagram posts, Spotify tracks, TikToks and Vimeo.',
-  },
-  {
-    icon: '🎨',
-    title: 'Make it yours',
-    text: 'Ready-made themes, gradients, background photos, fonts and button styles.',
-  },
-  {
-    icon: '🖼️',
-    title: 'Your own pictures',
-    text: 'Upload a profile photo, a background and gallery photos, no extra hosting needed.',
-  },
-  {
-    icon: '⚡',
-    title: 'Free and fast',
-    text: 'Your page lives at social.jrofficial.org/you and loads instantly on any phone.',
-  },
+  { Icon: LuLink, title: 'All your links, one page', text: 'Add as many links as you like as buttons, cards or big banners, each with its own icon or thumbnail.' },
+  { Icon: LuLayers, title: 'Pages inside your phone', text: 'Split your page into tabs. Every page is built from blocks you can mix and reorder freely.' },
+  { Icon: LuClapperboard, title: 'Show your work', text: 'Photo galleries, YouTube, Instagram, Spotify, TikTok and Vimeo embeds.' },
+  { Icon: LuPalette, title: 'Make it yours', text: 'Themes, gradients, background photos, fonts, shadows and three navigation styles.' },
+  { Icon: LuMail, title: 'Collect emails and messages', text: 'Add a contact form and read everything in your inbox. Export it any time.' },
+  { Icon: LuShare2, title: 'Looks great when shared', text: 'Your link shows a clean preview card on Discord, X, iMessage and more. Free, always.' },
 ];
 
 const STEPS = [
@@ -115,7 +92,7 @@ export default function Home() {
           <PhoneFrame scale={scale}>
             <ProfileScreen profile={DEMO_PROFILE} />
           </PhoneFrame>
-          <div className="hm-hint">↑ This one is interactive. Try the tabs.</div>
+          <div className="hm-hint">This one is interactive. Try the tabs.</div>
         </div>
       </section>
 
@@ -124,7 +101,7 @@ export default function Home() {
         <div className="hm-grid">
           {FEATURES.map((f) => (
             <div className="hm-card" key={f.title}>
-              <div className="hm-card-icon">{f.icon}</div>
+              <div className="hm-card-icon"><f.Icon size={20} /></div>
               <h3>{f.title}</h3>
               <p>{f.text}</p>
             </div>

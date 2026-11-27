@@ -1,3 +1,22 @@
 {
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/:username",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(discordbot|twitterbot|facebookexternalhit|facebot|slackbot|telegrambot|whatsapp|linkedinbot|skypeuripreview|embedly|pinterest|redditbot|applebot|iframely|mastodon).*"
+        }
+      ],
+      "destination": "/api/page?u=:username"
+    },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ],
+  "functions": {
+    "api/og.ts": {
+      "includeFiles": "node_modules/@fontsource/inter/files/inter-latin-{400,700}-normal.woff",
+      "maxDuration": 15
+    }
+  }
 }

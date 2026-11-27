@@ -1,4 +1,4 @@
-import { BG_MAX, cleanImage } from './clean.js';
+import { cleanImage } from './clean.js';
 
 export interface Theme {
   bgType: 'solid' | 'gradient' | 'image';
@@ -12,8 +12,15 @@ export interface Theme {
   btnShape: 'square' | 'rounded' | 'pill';
   btnColor: string;
   btnTextColor: string;
+  btnBorder: string; // '' = same as btnColor
+  btnShadow: 'none' | 'soft' | 'hard';
   font: 'sans' | 'serif' | 'mono' | 'rounded';
   avatarShape: 'circle' | 'rounded' | 'square';
+  headerAlign: 'center' | 'left';
+  spacing: 'compact' | 'normal' | 'airy';
+  nav: 'bottom' | 'dock' | 'top';
+  navLabels: 'text' | 'icons' | 'both';
+  anim: 'none' | 'lift' | 'pop';
 }
 
 export const DEFAULT_THEME: Theme = {
@@ -28,8 +35,15 @@ export const DEFAULT_THEME: Theme = {
   btnShape: 'rounded',
   btnColor: '#18181b',
   btnTextColor: '#ffffff',
+  btnBorder: '',
+  btnShadow: 'none',
   font: 'sans',
   avatarShape: 'circle',
+  headerAlign: 'center',
+  spacing: 'normal',
+  nav: 'bottom',
+  navLabels: 'text',
+  anim: 'lift',
 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
@@ -50,7 +64,7 @@ export function cleanTheme(raw: any): { theme: Theme } | { error: string } {
   const r = raw && typeof raw === 'object' ? raw : {};
   const D = DEFAULT_THEME;
 
-  const bgImage = cleanImage(r.bgImage, BG_MAX);
+  const bgImage = cleanImage(r.bgImage);
   if (bgImage === null) {
     return { error: 'Background image must be an https URL or an uploaded image' };
   }
@@ -68,8 +82,15 @@ export function cleanTheme(raw: any): { theme: Theme } | { error: string } {
       btnShape: pick(r.btnShape, ['square', 'rounded', 'pill'] as const, D.btnShape),
       btnColor: hex(r.btnColor, D.btnColor),
       btnTextColor: hex(r.btnTextColor, D.btnTextColor),
+      btnBorder: r.btnBorder === '' ? '' : hex(r.btnBorder, D.btnBorder),
+      btnShadow: pick(r.btnShadow, ['none', 'soft', 'hard'] as const, D.btnShadow),
       font: pick(r.font, ['sans', 'serif', 'mono', 'rounded'] as const, D.font),
       avatarShape: pick(r.avatarShape, ['circle', 'rounded', 'square'] as const, D.avatarShape),
+      headerAlign: pick(r.headerAlign, ['center', 'left'] as const, D.headerAlign),
+      spacing: pick(r.spacing, ['compact', 'normal', 'airy'] as const, D.spacing),
+      nav: pick(r.nav, ['bottom', 'dock', 'top'] as const, D.nav),
+      navLabels: pick(r.navLabels, ['text', 'icons', 'both'] as const, D.navLabels),
+      anim: pick(r.anim, ['none', 'lift', 'pop'] as const, D.anim),
     },
   };
 }

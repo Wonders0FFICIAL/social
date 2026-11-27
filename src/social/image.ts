@@ -1,17 +1,24 @@
-const AVATAR_MAX = 120_000;
-const BG_MAX = 700_000;
-const THUMB_MAX = 30_000;
-const GALLERY_MAX = 70_000;
+import { api } from './api';
 
-export type ImageKind = 'avatar' | 'bg' | 'thumb' | 'gallery';
+export type ImageKind = 'avatar' | 'thumb' | 'card' | 'bg' | 'photo';
+
+const SPEC: Record<ImageKind, { square?: number; max?: [number, number]; quality: number }> = {
+  avatar: { square: 512, quality: 0.86 },
+  thumb: { square: 256, quality: 0.85 },
+  card: { max: [1200, 800], quality: 0.82 },
+  bg: { max: [1280, 2200], quality: 0.8 },
+  photo: { max: [1600, 1600], quality: 0.82 },
+};
+
+const LIMIT = 1_900_000; // server accepts up to 2 MB per file
 
 /**
- * Resizes + compresses an image in the browser and returns a small data URL.
- * Avatars are square-cropped to 320px; backgrounds fit within 900x1600.
+ * Resizes + compresses an image in the browser, uploads it, and returns the
+ * URL to store in the page. (No limit on how many images a page can use.)
  */
-export async function processImage(file: File, kind: ImageKind): Promise<string> {
+export async function uploadImage(file: File, kind: ImageKind): Promise<string> {
   if (!file.type.startsWith('image/')) throw new Error('Pick an image file');
-  if (file.size > 15 * 1024 * 1024) throw new Error('Image is too big (max 15 MB)');
+  if (file.size > 25 * 1024 * 1024) throw new Error('Image is too big (max 25 MB)');
 
   let bmp: ImageBitmap;
   try {
@@ -20,31 +27,33 @@ export async function processImage(file: File, kind: ImageKind): Promise<string>
     throw new Error("Couldn't read that image");
   }
 
+  const spec = SPEC[kind];
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#fff';
 
-  if (kind === 'avatar' || kind === 'thumb') {
-    const S = kind === 'avatar' ? 320 : 128;
-    canvas.width = canvas.height = S;
+  if (spec.square) {
+    canvas.width = canvas.height = spec.square;
     const side = Math.min(bmp.width, bmp.height);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, S, S);
-    ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, S, S);
+    ctx.fillRect(0, 0, spec.square, spec.square);
+    ctx.drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, spec.square, spec.square);
   } else {
-    const [mw, mh] = kind === 'gallery' ? [560, 560] : [900, 1600];
+    const [mw, mh] = spec.max!;
     const scale = Math.min(1, mw / bmp.width, mh / bmp.height);
-    canvas.width = Math.round(bmp.width * scale);
-    canvas.height = Math.round(bmp.height * scale);
-    ctx.fillStyle = '#fff';
+    canvas.width = Math.max(1, Math.round(bmp.width * scale));
+    canvas.height = Math.max(1, Math.round(bmp.height * scale));
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
   }
   bmp.close();
 
-  const max = { avatar: AVATAR_MAX, bg: BG_MAX, thumb: THUMB_MAX, gallery: GALLERY_MAX }[kind];
-  for (const q of [0.85, 0.7, 0.55, 0.4]) {
+  let b64 = '';
+  for (const q of [spec.quality, 0.7, 0.55, 0.4]) {
     const url = canvas.toDataURL('image/jpeg', q);
-    if (url.length <= max) return url;
+    b64 = url.slice(url.indexOf(',') + 1);
+    if (b64.length * 0.75 <= LIMIT) break;
   }
-  throw new Error('That image is too detailed, try a smaller one');
+  if (b64.length * 0.75 > LIMIT) throw new Error('That image is too detailed, try a smaller one');
+
+  return (await api.upload('image/jpeg', b64)).url;
 }

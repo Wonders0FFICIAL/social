@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { LuCheck, LuCopy, LuExternalLink, LuLogOut, LuShield } from 'react-icons/lu';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { LuCheck, LuCopy, LuExternalLink, LuLogOut, LuRedo2, LuShield, LuUndo2 } from 'react-icons/lu';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api } from './api';
 import { EMPTY_PROFILE } from './blocks';
@@ -46,7 +46,13 @@ export default function Editor() {
           setSaved(JSON.stringify(r.profile));
           setSavedName(r.profile.username);
         } else {
-          setDraft((d) => ({ ...d, displayName: r.name ?? '', avatarUrl: r.picture ?? '' }));
+          let claim = '';
+          try {
+            claim = (sessionStorage.getItem('social:claim') ?? '').replace(/[^a-z0-9_]/g, '').slice(0, 20);
+          } catch {
+            /* ignore */
+          }
+          setDraft((d) => ({ ...d, username: claim, displayName: r.name ?? '', avatarUrl: r.picture ?? '' }));
         }
         setPhase('in');
       })
@@ -66,8 +72,52 @@ export default function Editor() {
     return () => clearTimeout(t);
   }, [msg]);
 
-  const set = (patch: Partial<SocialProfile>) => setDraft((d) => ({ ...d, ...patch }));
-  const setTheme = (patch: Partial<Theme>) => setDraft((d) => ({ ...d, theme: { ...d.theme, ...patch } }));
+  // ----- undo / redo: every edit goes through commit(), rapid edits (typing, dragging a slider) merge into one step
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const past = useRef<SocialProfile[]>([]);
+  const future = useRef<SocialProfile[]>([]);
+  const lastEdit = useRef(0);
+  const [, bump] = useState(0);
+
+  const commit = useCallback((fn: (d: SocialProfile) => SocialProfile) => {
+    const cur = draftRef.current;
+    const next = fn(cur);
+    if (next === cur) return;
+    const now = Date.now();
+    if (past.current.length === 0 || now - lastEdit.current > 600) {
+      past.current.push(cur);
+      if (past.current.length > 100) past.current.shift();
+    }
+    lastEdit.current = now;
+    future.current = [];
+    draftRef.current = next;
+    setDraft(next);
+    bump((n) => n + 1);
+  }, []);
+
+  const undo = useCallback(() => {
+    const prev = past.current.pop();
+    if (!prev) return;
+    future.current.push(draftRef.current);
+    lastEdit.current = 0;
+    draftRef.current = prev;
+    setDraft(prev);
+    bump((n) => n + 1);
+  }, []);
+
+  const redo = useCallback(() => {
+    const next = future.current.pop();
+    if (!next) return;
+    past.current.push(draftRef.current);
+    lastEdit.current = 0;
+    draftRef.current = next;
+    setDraft(next);
+    bump((n) => n + 1);
+  }, []);
+
+  const set = (patch: Partial<SocialProfile>) => commit((d) => ({ ...d, ...patch }));
+  const setTheme = (patch: Partial<Theme>) => commit((d) => ({ ...d, theme: { ...d.theme, ...patch } }));
 
   async function save() {
     if (busy) return;
@@ -93,14 +143,23 @@ export default function Editor() {
   saveRef.current = save;
   useEffect(() => {
     const f = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === 's') {
         e.preventDefault();
         saveRef.current();
+      } else if (k === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      } else if (k === 'y') {
+        e.preventDefault();
+        redo();
       }
     };
     window.addEventListener('keydown', f);
     return () => window.removeEventListener('keydown', f);
-  }, []);
+  }, [undo, redo]);
 
   async function copyLink() {
     if (!savedName) return;
@@ -164,6 +223,14 @@ export default function Editor() {
           )}
         </div>
         <div className="ed-top-right">
+          <div className="ed-history">
+            <button className="ed-btn sm icon ghost" onClick={undo} disabled={past.current.length === 0} title="Undo (Ctrl+Z)" aria-label="Undo">
+              <LuUndo2 size={16} />
+            </button>
+            <button className="ed-btn sm icon ghost" onClick={redo} disabled={future.current.length === 0} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">
+              <LuRedo2 size={16} />
+            </button>
+          </div>
           {dirty && <span className="ed-dirty">Unsaved changes</span>}
           {msg && <span className={msg.ok ? 'ed-ok' : 'ed-err'}>{msg.text}</span>}
           <button className="ed-btn primary" onClick={save} disabled={busy || !dirty}>

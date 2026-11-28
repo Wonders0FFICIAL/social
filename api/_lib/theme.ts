@@ -1,4 +1,5 @@
 import { cleanImage } from './clean.js';
+import type { LinkStyle, PageTheme } from './types.js';
 
 export interface Theme {
   bgType: 'solid' | 'gradient' | 'image';
@@ -96,4 +97,52 @@ export function cleanTheme(raw: any): { theme: Theme } | { error: string } {
       anim: pick(r.anim, ['none', 'lift', 'pop'] as const, D.anim),
     },
   };
+}
+
+export const PAGE_THEME_KEYS = [
+  'bgType', 'bg1', 'bg2', 'bgAngle', 'bgImage', 'bgDim', 'bgPattern', 'textColor',
+  'btnStyle', 'btnShape', 'btnColor', 'btnTextColor', 'btnBorder', 'btnShadow', 'font', 'spacing', 'anim',
+] as const;
+
+/**
+ * A page can override part of the global theme. Only keys that were sent AND are
+ * valid are kept, everything else is inherited.
+ */
+export function cleanPageTheme(raw: any): { theme: PageTheme | undefined } | { error: string } {
+  if (!raw || typeof raw !== 'object') return { theme: undefined };
+  const picked: Record<string, unknown> = {};
+  for (const k of PAGE_THEME_KEYS) if (k in raw) picked[k] = raw[k];
+  if (Object.keys(picked).length === 0) return { theme: undefined };
+
+  const r = cleanTheme({ ...DEFAULT_THEME, ...picked });
+  if ('error' in r) return r;
+  const out: Record<string, unknown> = {};
+  for (const k of PAGE_THEME_KEYS) {
+    if (k in picked && (r.theme as any)[k] === picked[k]) out[k] = picked[k];
+  }
+  // bgImage may be rewritten by cleanImage (e.g. trimmed): keep the cleaned value
+  if ('bgImage' in picked) out.bgImage = r.theme.bgImage;
+  return { theme: Object.keys(out).length ? (out as PageTheme) : undefined };
+}
+
+/** Per-link style: only valid keys survive. */
+export function cleanLinkStyle(raw: any): LinkStyle | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o: LinkStyle = {};
+  const has = (k: string) => raw[k] !== undefined && raw[k] !== null;
+  if (has('btnStyle') && ['fill', 'outline', 'soft'].includes(raw.btnStyle)) o.btnStyle = raw.btnStyle;
+  if (has('btnShape') && ['square', 'rounded', 'pill'].includes(raw.btnShape)) o.btnShape = raw.btnShape;
+  if (has('btnShadow') && ['none', 'soft', 'hard'].includes(raw.btnShadow)) o.btnShadow = raw.btnShadow;
+  if (has('anim') && ['none', 'lift', 'pop'].includes(raw.anim)) o.anim = raw.anim;
+  if (has('size') && ['sm', 'md', 'lg'].includes(raw.size)) o.size = raw.size;
+  if (has('textAlign') && ['left', 'center'].includes(raw.textAlign)) o.textAlign = raw.textAlign;
+  for (const k of ['btnColor', 'btnTextColor', 'btnBorder'] as const) {
+    if (typeof raw[k] === 'string' && HEX.test(raw[k])) o[k] = raw[k].toLowerCase();
+  }
+  return Object.keys(o).length ? o : undefined;
+}
+
+/** '' or a #rrggbb colour */
+export function cleanColorOrEmpty(v: unknown): string {
+  return typeof v === 'string' && HEX.test(v) ? v.toLowerCase() : '';
 }

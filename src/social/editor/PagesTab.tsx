@@ -3,7 +3,9 @@ import { LuArrowLeft, LuArrowRight, LuCopy, LuEye, LuEyeOff, LuPlus, LuTrash2 } 
 import { newPage } from '../blocks';
 import { Icon, iconName } from '../icons';
 import type { SocialPage, SocialProfile } from '../types';
+import { effectiveTheme } from '../themes';
 import { BlockList } from './BlockEditors';
+import PageLook from './PageLook';
 import { Field, IconGrid, move, uid } from './controls';
 
 const MAX_PAGES = 25;
@@ -123,7 +125,9 @@ export default function PagesTab({
         </Field>
       </div>
 
-      <BlockList blocks={page.blocks} onChange={(blocks) => setPage({ blocks })} />
+      <PageLook global={draft.theme} page={page} setPage={setPage} />
+
+      <BlockList blocks={page.blocks} onChange={(blocks) => setPage({ blocks })} theme={effectiveTheme(draft.theme, page)} />
     </div>
   );
 }

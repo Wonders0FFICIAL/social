@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { cleanIcon, cleanImage, cleanLinkUrl, cleanPageIcon, cleanUrl } from './clean.js';
 import { parseEmbed } from './embed.js';
-import { cleanTheme, type Theme } from './theme.js';
+import { cleanColorOrEmpty, cleanLinkStyle, cleanPageTheme, cleanTheme, type Theme } from './theme.js';
 import type { Align, Block, PageDoc } from './types.js';
 
 // Usernames nobody should be able to claim.
@@ -65,6 +65,7 @@ function cleanBlock(b: any, where: string): R<Block> {
           icon,
           variant: oneOf(b.variant, ['button', 'card', 'featured'] as const, 'button'),
           image,
+          ...(cleanLinkStyle(b.style) ? { style: cleanLinkStyle(b.style) } : {}),
         },
       };
     }
@@ -76,11 +77,18 @@ function cleanBlock(b: any, where: string): R<Block> {
           text: str(b.text, 80),
           subtitle: str(b.subtitle, 200),
           align: align(b.align),
+          ...(cleanColorOrEmpty(b.color) ? { color: cleanColorOrEmpty(b.color) } : {}),
         },
       };
     case 'text':
       return {
-        value: { ...base, type: 'text', text: String(b.text ?? '').trim().slice(0, 3000), align: align(b.align) },
+        value: {
+          ...base,
+          type: 'text',
+          text: String(b.text ?? '').trim().slice(0, 3000),
+          align: align(b.align),
+          ...(cleanColorOrEmpty(b.color) ? { color: cleanColorOrEmpty(b.color) } : {}),
+        },
       };
     case 'socials': {
       if (!Array.isArray(b.items)) return { error: `Bad social icons on ${where}` };
@@ -164,11 +172,14 @@ function cleanPages(raw: unknown): R<PageDoc[]> {
       if ('error' in r) return r;
       blocks.push(r.value);
     }
+    const pt = cleanPageTheme(p?.theme);
+    if ('error' in pt) return { error: pt.error };
     pages.push({
       id: id(p?.id),
       title,
       icon: cleanPageIcon(p?.icon),
       hidden: pi === 0 ? false : p?.hidden === true,
+      ...(pt.theme ? { theme: pt.theme } : {}),
       blocks,
     });
   }

@@ -3,12 +3,13 @@ import { FaCheck, FaPlay } from 'react-icons/fa6';
 import { api } from './api';
 import { parseEmbed } from './embed';
 import { autoIconFor, hostOf, Icon, iconName } from './icons';
-import { imageLayer, themeVars } from './themes';
+import { CARD_RADIUS, effectiveTheme, imageLayer, RADIUS, themeVars } from './themes';
 import type {
   Block,
   ContactBlock,
   GalleryBlock,
   LinkBlock,
+  Theme,
   SocialPage,
   SocialProfile,
 } from './types';
@@ -50,7 +51,11 @@ function LinkIcon({ icon, url, size = 20 }: { icon: string; url: string; size?: 
 /* ---------------- blocks ---------------- */
 
 interface Ctx {
+  /** theme the current page is drawn with */
+  theme: Theme;
   preview?: boolean;
+  /** landing-page example: links work, forms never send */
+  demo?: boolean;
   username: string;
   open: (src: string, caption: string) => void;
 }
@@ -62,6 +67,28 @@ const linkProps = (url: string, preview?: boolean) => ({
   onClick: preview ? (e: React.MouseEvent) => e.preventDefault() : undefined,
 });
 
+function linkLook(b: LinkBlock, ctx: Ctx, defaultAlign: 'left' | 'center') {
+  const st = b.style ?? {};
+  const th = ctx.theme;
+  const css: Record<string, string> = {};
+  if (st.btnColor) css['--btn'] = st.btnColor;
+  if (st.btnTextColor) css['--btn-text'] = st.btnTextColor;
+  if (st.btnBorder || st.btnColor) css['--btn-border'] = st.btnBorder || st.btnColor!;
+  if (st.btnShape) {
+    css['--radius'] = RADIUS[st.btnShape];
+    css['--radius-card'] = CARD_RADIUS[st.btnShape];
+  }
+  return {
+    style: Object.keys(css).length ? (css as React.CSSProperties) : undefined,
+    'data-btn': st.btnStyle ?? th.btnStyle,
+    'data-shadow': st.btnShadow ?? th.btnShadow,
+    'data-anim': st.anim ?? th.anim,
+    'data-size': st.size ?? 'md',
+    'data-talign': st.textAlign ?? defaultAlign,
+    'data-custom': st.btnColor || st.btnTextColor || st.btnBorder ? '1' : undefined,
+  };
+}
+
 function LinkView({ b, ctx }: { b: LinkBlock; ctx: Ctx }) {
   const text = (
     <span className="sl-link-text">
@@ -71,11 +98,16 @@ function LinkView({ b, ctx }: { b: LinkBlock; ctx: Ctx }) {
   );
 
   if (b.variant === 'featured') {
+    const look = linkLook(b, ctx, 'left');
     return (
       <a
         {...linkProps(b.url, ctx.preview)}
+        {...look}
         className={`sl-featured${b.image ? ' has-img' : ''}`}
-        style={b.image ? { backgroundImage: `linear-gradient(transparent 35%, rgba(0,0,0,.72)), url(${JSON.stringify(b.image)})` } : undefined}
+        style={{
+          ...look.style,
+          ...(b.image ? { backgroundImage: `linear-gradient(transparent 35%, rgba(0,0,0,.72)), url(${JSON.stringify(b.image)})` } : {}),
+        }}
       >
         <span className="sl-featured-body">
           <LinkIcon icon={b.icon} url={b.url} size={22} />
@@ -87,7 +119,7 @@ function LinkView({ b, ctx }: { b: LinkBlock; ctx: Ctx }) {
 
   if (b.variant === 'card') {
     return (
-      <a {...linkProps(b.url, ctx.preview)} className="sl-cardlink">
+      <a {...linkProps(b.url, ctx.preview)} {...linkLook(b, ctx, 'left')} className="sl-cardlink">
         {b.image && <img className="sl-card-img" src={b.image} alt="" loading="lazy" referrerPolicy="no-referrer" />}
         <span className="sl-card-body">
           <LinkIcon icon={b.icon} url={b.url} />
@@ -98,7 +130,7 @@ function LinkView({ b, ctx }: { b: LinkBlock; ctx: Ctx }) {
   }
 
   return (
-    <a {...linkProps(b.url, ctx.preview)} className={`sl-link${b.icon === 'none' ? ' noicon' : ''}`}>
+    <a {...linkProps(b.url, ctx.preview)} {...linkLook(b, ctx, 'center')} className={`sl-link${b.icon === 'none' ? ' noicon' : ''}`}>
       <LinkIcon icon={b.icon} url={b.url} />
       {text}
     </a>
@@ -210,7 +242,7 @@ function ContactForm({ b, ctx }: { b: ContactBlock; ctx: Ctx }) {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setErr('');
-    if (ctx.preview) {
+    if (ctx.preview || ctx.demo) {
       setState('done');
       setTimeout(() => setState('idle'), 2500);
       return;
@@ -293,14 +325,14 @@ function BlockView({ b, ctx }: { b: Block; ctx: Ctx }) {
 
     case 'heading':
       return (
-        <div className={`sl-heading ${b.align}`}>
+        <div className={`sl-heading ${b.align}`} style={b.color ? { color: b.color } : undefined}>
           <h3>{b.text}</h3>
           {b.subtitle && <p>{b.subtitle}</p>}
         </div>
       );
 
     case 'text':
-      return <p className={`sl-text ${b.align}`}>{b.text}</p>;
+      return <p className={`sl-text ${b.align}`} style={b.color ? { color: b.color } : undefined}>{b.text}</p>;
 
     case 'socials':
       return (
@@ -357,15 +389,14 @@ interface Props {
   profile: SocialProfile;
   /** In the editor preview, links shouldn't navigate away and forms don't send. */
   preview?: boolean;
+  /** Example page on the landing page: links open, contact forms are pretend. */
+  demo?: boolean;
   /** Controlled page index (0 = home). Optional. */
   activePage?: number;
   onPageChange?: (i: number) => void;
 }
 
-export default function ProfileScreen({ profile, preview, activePage, onPageChange }: Props) {
-  const t = profile.theme;
-  const name = profile.displayName || profile.username || 'Your name';
-  const layer = imageLayer(t);
+export default function ProfileScreen({ profile, preview, demo, activePage, onPageChange }: Props) {
   const pages = profile.pages;
   const [inner, setInner] = useState(0);
   const [box, setBox] = useState<{ src: string; caption: string } | null>(null);
@@ -375,6 +406,9 @@ export default function ProfileScreen({ profile, preview, activePage, onPageChan
   let active = Math.min(activePage ?? inner, pages.length - 1);
   if (active < 0 || !visible.some((v) => v.i === active)) active = 0;
   const page: SocialPage | undefined = pages[active];
+  const t = effectiveTheme(profile.theme, page);
+  const name = profile.displayName || profile.username || 'Your name';
+  const layer = imageLayer(t);
   const isHome = active === 0;
   const hasNav = visible.length > 1;
 
@@ -385,7 +419,9 @@ export default function ProfileScreen({ profile, preview, activePage, onPageChan
   }
 
   const ctx: Ctx = {
+    theme: t,
     preview,
+    demo,
     username: profile.username,
     open: (src, caption) => setBox({ src, caption }),
   };

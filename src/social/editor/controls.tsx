@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { LuImagePlus, LuSearch, LuX } from 'react-icons/lu';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { LuChevronDown, LuChevronRight, LuImagePlus, LuSearch, LuX } from 'react-icons/lu';
 import { Icon, ICONS, autoIconFor, iconName } from '../icons';
 import { uploadImage, type ImageKind } from '../image';
 import { isImageIcon } from '../ProfileScreen';
-import { SWATCHES } from '../themes';
+import { DEFAULT_THEME, SWATCHES } from '../themes';
+import type { LinkStyle, Theme } from '../types';
 
 export const MAX_BYTES = 1_500_000;
 
@@ -305,5 +306,131 @@ export function IconX({ onClick, label }: { onClick: () => void; label: string }
     <button type="button" className="ed-x" onClick={onClick} aria-label={label} title={label}>
       <LuX size={15} />
     </button>
+  );
+}
+
+/** Look of the page being edited, so link editors can show what they inherit. */
+export const BlockCtx = createContext<{ theme: Theme; applyStyleToAll: (s: LinkStyle | undefined) => void }>({
+  theme: DEFAULT_THEME,
+  applyStyleToAll: () => {},
+});
+
+/** Colour that falls back to the page colour when empty. */
+export function ColorOverride({
+  label,
+  value,
+  fallback,
+  onChange,
+}: {
+  label: string;
+  value: string | undefined;
+  fallback: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="ed-field">
+      <Color label={label} value={value || fallback} onChange={onChange} />
+      {value && (
+        <button type="button" className="ed-link-btn" onClick={() => onChange('')}>
+          Use page colour
+        </button>
+      )}
+    </div>
+  );
+}
+
+const hasKeys = (o: object | undefined) => !!o && Object.keys(o).length > 0;
+
+/** Per-link style: anything left alone is inherited from the page. */
+export function LinkStyleEditor({
+  style,
+  variant,
+  onChange,
+}: {
+  style: LinkStyle | undefined;
+  variant: 'button' | 'card' | 'featured';
+  onChange: (s: LinkStyle | undefined) => void;
+}) {
+  const { theme, applyStyleToAll } = useContext(BlockCtx);
+  const [open, setOpen] = useState(false);
+  const st = style ?? {};
+  const set = (patch: Partial<LinkStyle>) => {
+    const next: Record<string, unknown> = { ...st, ...patch };
+    for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
+    onChange(Object.keys(next).length ? (next as LinkStyle) : undefined);
+  };
+  const eff = <K extends keyof Theme>(k: K) => (st as Record<string, unknown>)[k] as Theme[K] ?? theme[k];
+
+  return (
+    <div className="ed-linkstyle">
+      <button type="button" className="ed-disclosure" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        {open ? <LuChevronDown size={16} /> : <LuChevronRight size={16} />}
+        <b>Style</b>
+        <span>{hasKeys(style) ? 'Custom' : 'Same as page'}</span>
+      </button>
+      {open && (
+        <div className="ed-linkstyle-body">
+          {variant === 'button' && (
+            <Field label="Fill">
+              <Seg
+                value={eff('btnStyle')}
+                onChange={(v) => set({ btnStyle: v })}
+                options={[{ v: 'fill', label: 'Filled' }, { v: 'outline', label: 'Outline' }, { v: 'soft', label: 'Soft' }]}
+              />
+            </Field>
+          )}
+          <Field label="Shape">
+            <Seg
+              value={eff('btnShape')}
+              onChange={(v) => set({ btnShape: v })}
+              options={[{ v: 'square', label: 'Square' }, { v: 'rounded', label: 'Rounded' }, { v: 'pill', label: 'Pill' }]}
+            />
+          </Field>
+          <Field label="Size">
+            <Seg
+              value={st.size ?? 'md'}
+              onChange={(v) => set({ size: v })}
+              options={[{ v: 'sm', label: 'Small' }, { v: 'md', label: 'Medium' }, { v: 'lg', label: 'Large' }]}
+            />
+          </Field>
+          <Field label="Text alignment">
+            <Seg
+              value={st.textAlign ?? (variant === 'button' ? 'center' : 'left')}
+              onChange={(v) => set({ textAlign: v })}
+              options={[{ v: 'left', label: 'Left' }, { v: 'center', label: 'Centre' }]}
+            />
+          </Field>
+          <Field label="Shadow">
+            <Seg
+              value={eff('btnShadow')}
+              onChange={(v) => set({ btnShadow: v })}
+              options={[{ v: 'none', label: 'None' }, { v: 'soft', label: 'Soft' }, { v: 'hard', label: 'Hard' }]}
+            />
+          </Field>
+          <Field label="Hover effect">
+            <Seg
+              value={eff('anim')}
+              onChange={(v) => set({ anim: v })}
+              options={[{ v: 'none', label: 'None' }, { v: 'lift', label: 'Lift' }, { v: 'pop', label: 'Pop' }]}
+            />
+          </Field>
+          {variant !== 'featured' && (
+            <>
+              <ColorOverride label="Colour" value={st.btnColor} fallback={theme.btnColor} onChange={(v) => set({ btnColor: v || undefined })} />
+              <ColorOverride label="Text colour" value={st.btnTextColor} fallback={theme.btnTextColor} onChange={(v) => set({ btnTextColor: v || undefined })} />
+            </>
+          )}
+          <ColorOverride label="Border colour" value={st.btnBorder} fallback={st.btnColor || theme.btnBorder || theme.btnColor} onChange={(v) => set({ btnBorder: v || undefined })} />
+          <div className="ed-actions">
+            <button type="button" className="ed-btn sm" disabled={!hasKeys(style)} onClick={() => onChange(undefined)}>
+              Reset to page style
+            </button>
+            <button type="button" className="ed-btn sm" disabled={!hasKeys(style)} onClick={() => applyStyleToAll(style)}>
+              Apply to all links on this page
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

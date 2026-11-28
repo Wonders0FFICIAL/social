@@ -3,8 +3,9 @@ import { LuArrowDown, LuArrowUp, LuChevronDown, LuChevronRight, LuCopy, LuEye, L
 import { BLOCK_TYPES, newBlock } from '../blocks';
 import { parseEmbed } from '../embed';
 import { Icon, autoIconFor, iconName } from '../icons';
-import type { Block, BlockType, GalleryBlock, SocialsBlock } from '../types';
-import { Field, IconGrid, ImagePicker, LinkIconPicker, MultiUpload, Seg, move, uid, validUrl } from './controls';
+import type { Block, BlockType, GalleryBlock, LinkStyle, SocialsBlock, Theme } from '../types';
+import { BlockCtx, ColorOverride, Field, IconGrid, ImagePicker, LinkIconPicker, LinkStyleEditor, MultiUpload, Seg, move, uid, validUrl } from './controls';
+import { useContext } from 'react';
 
 type P<B extends Block> = { b: B; set: (patch: Partial<B>) => void };
 
@@ -28,6 +29,11 @@ function summary(b: Block): string {
 }
 
 /* ---------- per type ---------- */
+
+function BlockColor({ value, onChange }: { value: string | undefined; onChange: (v: string | undefined) => void }) {
+  const { theme } = useContext(BlockCtx);
+  return <ColorOverride label="Text colour" value={value} fallback={theme.textColor} onChange={(v) => onChange(v || undefined)} />;
+}
 
 function LinkEd({ b, set }: P<Extract<Block, { type: 'link' }>>) {
   return (
@@ -71,6 +77,7 @@ function LinkEd({ b, set }: P<Extract<Block, { type: 'link' }>>) {
         </Field>
       )}
       {b.variant === 'button' && <LinkIconPicker value={b.icon} url={b.url} onChange={(v) => set({ icon: v })} />}
+      <LinkStyleEditor style={b.style} variant={b.variant} onChange={(style) => set({ style })} />
     </>
   );
 }
@@ -87,6 +94,7 @@ function HeadingEd({ b, set }: P<Extract<Block, { type: 'heading' }>>) {
       <Field label="Alignment">
         <Seg value={b.align} onChange={(v) => set({ align: v })} options={[{ v: 'left', label: 'Left' }, { v: 'center', label: 'Centre' }]} />
       </Field>
+      <BlockColor value={b.color} onChange={(color) => set({ color })} />
     </>
   );
 }
@@ -100,6 +108,7 @@ function TextEd({ b, set }: P<Extract<Block, { type: 'text' }>>) {
       <Field label="Alignment">
         <Seg value={b.align} onChange={(v) => set({ align: v })} options={[{ v: 'left', label: 'Left' }, { v: 'center', label: 'Centre' }]} />
       </Field>
+      <BlockColor value={b.color} onChange={(color) => set({ color })} />
     </>
   );
 }
@@ -334,14 +343,17 @@ export function AddBlock({ onAdd }: { onAdd: (t: BlockType) => void }) {
   );
 }
 
-export function BlockList({ blocks, onChange }: { blocks: Block[]; onChange: (b: Block[]) => void }) {
+export function BlockList({ blocks, onChange, theme }: { blocks: Block[]; onChange: (b: Block[]) => void; theme: Theme }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const add = (t: BlockType) => {
     const nb = newBlock(t);
     onChange([...blocks, nb]);
     setOpenId(nb.id);
   };
+  const applyStyleToAll = (style: LinkStyle | undefined) =>
+    onChange(blocks.map((x) => (x.type === 'link' ? { ...x, style: style ? { ...style } : undefined } : x)));
   return (
+    <BlockCtx.Provider value={{ theme, applyStyleToAll }}>
     <div className="ed-blocks">
       {blocks.length === 0 && <div className="ed-hint">This page is empty. Add your first block below.</div>}
       {blocks.map((b, i) => (
@@ -369,5 +381,6 @@ export function BlockList({ blocks, onChange }: { blocks: Block[]; onChange: (b:
       ))}
       <AddBlock onAdd={add} />
     </div>
+    </BlockCtx.Provider>
   );
 }

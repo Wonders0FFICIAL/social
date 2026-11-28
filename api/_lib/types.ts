@@ -3,6 +3,25 @@
 export type LinkVariant = 'button' | 'card' | 'featured';
 export type Align = 'left' | 'center';
 
+import type { Theme } from './theme.js';
+
+/** Per-link look. Every field is optional: missing means "inherit from the page". */
+export interface LinkStyle {
+  btnStyle?: 'fill' | 'outline' | 'soft';
+  btnShape?: 'square' | 'rounded' | 'pill';
+  btnColor?: string;
+  btnTextColor?: string;
+  btnBorder?: string;
+  btnShadow?: 'none' | 'soft' | 'hard';
+  anim?: 'none' | 'lift' | 'pop';
+  size?: 'sm' | 'md' | 'lg';
+  textAlign?: 'left' | 'center';
+}
+/** Per-page overrides of the global theme (colours, background, buttons, font). */
+export type PageTheme = Partial<Pick<Theme,
+  'bgType' | 'bg1' | 'bg2' | 'bgAngle' | 'bgImage' | 'bgDim' | 'bgPattern' | 'textColor' |
+  'btnStyle' | 'btnShape' | 'btnColor' | 'btnTextColor' | 'btnBorder' | 'btnShadow' | 'font' | 'spacing' | 'anim'>>;
+
 interface Base {
   id: string;
   hidden?: boolean;
@@ -16,17 +35,20 @@ export interface LinkBlock extends Base {
   icon: string; // '' auto | 'none' | 'ic:<name>' | image
   variant: LinkVariant;
   image: string; // used by card / featured
+  style?: LinkStyle;
 }
 export interface HeadingBlock extends Base {
   type: 'heading';
   text: string;
   subtitle: string;
   align: Align;
+  color?: string; // '' / missing = page text colour
 }
 export interface TextBlock extends Base {
   type: 'text';
   text: string;
   align: Align;
+  color?: string;
 }
 export interface SocialItem {
   id: string;
@@ -87,5 +109,6 @@ export interface PageDoc {
   title: string;
   icon: string; // '' or 'ic:<name>'
   hidden?: boolean;
+  theme?: PageTheme;
   blocks: Block[];
 }

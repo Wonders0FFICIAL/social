@@ -6,7 +6,7 @@ import type { SocialPage, SocialProfile } from '../types';
 import { effectiveTheme } from '../themes';
 import { BlockList } from './BlockEditors';
 import PageLook from './PageLook';
-import { Field, IconGrid, move, uid } from './controls';
+import { Field, IconGrid, move, uid, useReorder } from './controls';
 
 const MAX_PAGES = 25;
 
@@ -15,17 +15,24 @@ export default function PagesTab({
   set,
   sel,
   setSel,
+  focus,
 }: {
   draft: SocialProfile;
   set: (patch: Partial<SocialProfile>) => void;
   sel: number;
   setSel: (i: number) => void;
+  focus?: { block?: string; nonce: number };
 }) {
   const [iconOpen, setIconOpen] = useState(false);
   const pages = draft.pages;
   const i = Math.min(sel, pages.length - 1);
   const page = pages[i];
   const home = i === 0;
+  const reorder = useReorder(pages, (next) => {
+    const cur = pages[i]?.id;
+    set({ pages: next });
+    setSel(Math.max(0, next.findIndex((p) => p.id === cur)));
+  }, 'x', 1);
 
   const setPage = (patch: Partial<SocialPage>) =>
     set({ pages: pages.map((p, j) => (j === i ? { ...p, ...patch } : p)) });
@@ -70,7 +77,13 @@ export default function PagesTab({
         </span>
         <div className="ed-pages">
           {pages.map((p, j) => (
-            <button key={p.id} className={`${j === i ? 'on' : ''}${p.hidden ? ' hid' : ''}`} onClick={() => setSel(j)}>
+            <button
+              key={p.id}
+              className={`${j === i ? 'on' : ''}${p.hidden ? ' hid' : ''}${reorder.indicator(j) ? ` drop-${reorder.indicator(j)}` : ''}`}
+              onClick={() => setSel(j)}
+              {...reorder.grab(j)}
+              {...reorder.target(j)}
+            >
               {iconName(p.icon) && <Icon name={iconName(p.icon)!} size={13} />}
               {p.title || 'Untitled'}
               {j === 0 && <small>home</small>}
@@ -81,7 +94,7 @@ export default function PagesTab({
           </button>
         </div>
         <small>
-          Visitors switch between pages with the tab bar on your phone screen. Your photo, name and bio only show on the home page.
+          Drag pages to reorder them. Visitors switch between pages with the tab bar on your phone screen. Your photo, name and bio only show on the home page.
         </small>
       </div>
 
@@ -127,7 +140,7 @@ export default function PagesTab({
 
       <PageLook global={draft.theme} page={page} setPage={setPage} />
 
-      <BlockList blocks={page.blocks} onChange={(blocks) => setPage({ blocks })} theme={effectiveTheme(draft.theme, page)} />
+      <BlockList blocks={page.blocks} onChange={(blocks) => setPage({ blocks })} theme={effectiveTheme(draft.theme, page)} focus={focus} />
     </div>
   );
 }

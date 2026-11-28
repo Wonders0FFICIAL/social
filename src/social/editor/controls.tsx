@@ -434,3 +434,55 @@ export function LinkStyleEditor({
     </div>
   );
 }
+
+/** Drag-to-reorder for a list (native HTML5 drag and drop; arrows remain for touch screens). */
+export function useReorder<T>(items: T[], onChange: (next: T[]) => void, axis: 'x' | 'y' = 'y', locked = 0) {
+  const [drag, setDrag] = useState<{ from: number; over: number | null } | null>(null);
+
+  const indicator = (i: number): '' | 'before' | 'after' => {
+    if (!drag || drag.over === null) return '';
+    if (drag.over === drag.from || drag.over === drag.from + 1) return '';
+    if (drag.over === i) return 'before';
+    if (drag.over === items.length && i === items.length - 1) return 'after';
+    return '';
+  };
+
+  /** spread on the thing you grab (a handle, or the whole item) */
+  const grab = (i: number, imageOf?: (el: HTMLElement) => Element | null) => ({
+    draggable: i >= locked,
+    onDragStart: (e: React.DragEvent<HTMLElement>) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(i));
+      const img = imageOf?.(e.currentTarget);
+      if (img) e.dataTransfer.setDragImage(img, 24, 24);
+      setDrag({ from: i, over: null });
+    },
+    onDragEnd: () => setDrag(null),
+  });
+
+  /** spread on each item: it is a drop target */
+  const target = (i: number) => ({
+    onDragOver: (e: React.DragEvent<HTMLElement>) => {
+      if (!drag) return;
+      e.preventDefault();
+      const r = e.currentTarget.getBoundingClientRect();
+      const before = axis === 'y' ? e.clientY < r.top + r.height / 2 : e.clientX < r.left + r.width / 2;
+      const over = Math.max(locked, before ? i : i + 1);
+      if (drag.over !== over) setDrag({ ...drag, over });
+    },
+    onDrop: (e: React.DragEvent<HTMLElement>) => {
+      e.preventDefault();
+      if (!drag || drag.over === null) return setDrag(null);
+      const to = drag.over > drag.from ? drag.over - 1 : drag.over;
+      if (to !== drag.from) {
+        const next = [...items];
+        const [m] = next.splice(drag.from, 1);
+        next.splice(to, 0, m);
+        onChange(next);
+      }
+      setDrag(null);
+    },
+  });
+
+  return { grab, target, indicator, dragging: drag?.from ?? null };
+}

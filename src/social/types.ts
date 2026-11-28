@@ -23,6 +23,23 @@ export interface Theme {
   anim: 'none' | 'lift' | 'pop';
 }
 
+/** Per-link look. Missing keys inherit from the page. */
+export interface LinkStyle {
+  btnStyle?: Theme['btnStyle'];
+  btnShape?: Theme['btnShape'];
+  btnColor?: string;
+  btnTextColor?: string;
+  btnBorder?: string;
+  btnShadow?: Theme['btnShadow'];
+  anim?: Theme['anim'];
+  size?: 'sm' | 'md' | 'lg';
+  textAlign?: 'left' | 'center';
+}
+/** Per-page overrides of the global theme. */
+export type PageTheme = Partial<Pick<Theme,
+  'bgType' | 'bg1' | 'bg2' | 'bgAngle' | 'bgImage' | 'bgDim' | 'bgPattern' | 'textColor' |
+  'btnStyle' | 'btnShape' | 'btnColor' | 'btnTextColor' | 'btnBorder' | 'btnShadow' | 'font' | 'spacing' | 'anim'>>;
+
 export type LinkVariant = 'button' | 'card' | 'featured';
 export type Align = 'left' | 'center';
 
@@ -39,17 +56,20 @@ export interface LinkBlock extends Base {
   icon: string;
   variant: LinkVariant;
   image: string;
+  style?: LinkStyle;
 }
 export interface HeadingBlock extends Base {
   type: 'heading';
   text: string;
   subtitle: string;
   align: Align;
+  color?: string;
 }
 export interface TextBlock extends Base {
   type: 'text';
   text: string;
   align: Align;
+  color?: string;
 }
 export interface SocialItem {
   id: string;
@@ -112,6 +132,7 @@ export interface SocialPage {
   /** '' or 'ic:<name>' */
   icon: string;
   hidden?: boolean;
+  theme?: PageTheme;
   blocks: Block[];
 }
 

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { Theme } from './types';
+import type { PageTheme, Theme } from './types';
 
 export const DEFAULT_THEME: Theme = {
   bgType: 'solid',
@@ -36,8 +36,24 @@ export const FONTS: Record<Theme['font'], string> = {
   script: "Caveat, 'Segoe Script', cursive",
 };
 
-const RADIUS = { square: '6px', rounded: '14px', pill: '999px' } as const;
-const CARD_RADIUS = { square: '6px', rounded: '18px', pill: '26px' } as const;
+export const PAGE_THEME_KEYS = [
+  'bgType', 'bg1', 'bg2', 'bgAngle', 'bgImage', 'bgDim', 'bgPattern', 'textColor',
+  'btnStyle', 'btnShape', 'btnColor', 'btnTextColor', 'btnBorder', 'btnShadow', 'font', 'spacing', 'anim',
+] as const;
+
+/** The theme a page is drawn with: global theme + that page's overrides. */
+export const effectiveTheme = (t: Theme, page?: { theme?: PageTheme }): Theme =>
+  page?.theme ? { ...t, ...page.theme } : t;
+
+/** All overridable keys copied from a theme (starting point for "customise this page"). */
+export function snapshotPageTheme(t: Theme): PageTheme {
+  const o: Record<string, unknown> = {};
+  for (const k of PAGE_THEME_KEYS) o[k] = t[k];
+  return o as PageTheme;
+}
+
+export const RADIUS = { square: '6px', rounded: '14px', pill: '999px' } as const;
+export const CARD_RADIUS = { square: '6px', rounded: '18px', pill: '26px' } as const;
 const AVATAR_RADIUS = { circle: '50%', rounded: '24%', square: '8px' } as const;
 const GAP = { compact: '8px', normal: '12px', airy: '18px' } as const;
 

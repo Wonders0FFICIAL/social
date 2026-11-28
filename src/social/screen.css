@@ -182,43 +182,43 @@
   border-radius: 10px;
   object-fit: cover;
 }
-.sl-screen[data-btn='fill'] .sl-link {
+.sl-link[data-btn='fill'] {
   color: var(--btn-text);
   background: var(--btn);
   border: 2px solid var(--btn-border);
 }
-.sl-screen[data-btn='outline'] .sl-link {
+.sl-link[data-btn='outline'] {
   background: transparent;
   border: 2px solid var(--btn-border);
 }
-.sl-screen[data-btn='soft'] .sl-link {
+.sl-link[data-btn='soft'] {
   background: color-mix(in srgb, var(--btn) 22%, transparent);
   border: 1px solid color-mix(in srgb, var(--btn-border) 45%, transparent);
   backdrop-filter: blur(8px);
 }
 
 /* shadows + hover */
-.sl-screen[data-shadow='soft'] .sl-link,
-.sl-screen[data-shadow='soft'] .sl-cardlink,
-.sl-screen[data-shadow='soft'] .sl-featured {
+.sl-link[data-shadow='soft'],
+.sl-cardlink[data-shadow='soft'],
+.sl-featured[data-shadow='soft'] {
   box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.45);
 }
-.sl-screen[data-shadow='hard'] .sl-link,
-.sl-screen[data-shadow='hard'] .sl-cardlink,
-.sl-screen[data-shadow='hard'] .sl-featured {
+.sl-link[data-shadow='hard'],
+.sl-cardlink[data-shadow='hard'],
+.sl-featured[data-shadow='hard'] {
   box-shadow: 4px 4px 0 var(--btn-border);
 }
-.sl-screen[data-anim='lift'] .sl-link:hover,
-.sl-screen[data-anim='lift'] .sl-cardlink:hover,
-.sl-screen[data-anim='lift'] .sl-featured:hover {
+.sl-link[data-anim='lift']:hover,
+.sl-cardlink[data-anim='lift']:hover,
+.sl-featured[data-anim='lift']:hover {
   transform: translateY(-2px);
 }
-.sl-screen[data-anim='pop'] .sl-link:hover,
-.sl-screen[data-anim='pop'] .sl-cardlink:hover,
-.sl-screen[data-anim='pop'] .sl-featured:hover {
+.sl-link[data-anim='pop']:hover,
+.sl-cardlink[data-anim='pop']:hover,
+.sl-featured[data-anim='pop']:hover {
   transform: scale(1.025);
 }
-.sl-screen[data-shadow='hard'][data-anim='lift'] .sl-link:hover {
+.sl-link[data-shadow='hard'][data-anim='lift']:hover {
   box-shadow: 6px 6px 0 var(--btn-border);
 }
 
@@ -686,3 +686,25 @@
 .sl-pattern.grid { background-image: linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px); background-size: 26px 26px; opacity: 0.1; }
 .sl-pattern.lines { background-image: repeating-linear-gradient(135deg, currentColor 0 1px, transparent 1px 12px); opacity: 0.1; }
 .sl-pattern.noise { opacity: 0.12; mix-blend-mode: overlay; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+
+/* per-link overrides (set as data attributes + CSS variables on the link itself) */
+.sl-link[data-size='sm'] { min-height: 44px; padding: 5px 12px; }
+.sl-link[data-size='sm'] .sl-link-text b { font-size: 14px; }
+.sl-link[data-size='sm'] .sl-ico { width: 28px; height: 28px; }
+.sl-link[data-size='sm'] .sl-link-text { padding-right: 38px; }
+.sl-link[data-size='lg'] { min-height: 74px; padding: 12px 18px; }
+.sl-link[data-size='lg'] .sl-link-text b { font-size: 17px; }
+.sl-link[data-size='lg'] .sl-link-text { padding-right: 54px; }
+.sl-link[data-size='lg'] .sl-ico { width: 42px; height: 42px; }
+.sl-link[data-talign='left'] .sl-link-text { text-align: left; padding-right: 0; }
+.sl-link[data-size='sm'][data-talign='left'] .sl-link-text,
+.sl-link[data-size='lg'][data-talign='left'] .sl-link-text { padding-right: 0; }
+.sl-cardlink[data-talign='center'] .sl-link-text,
+.sl-featured[data-talign='center'] .sl-link-text { align-items: center; text-align: center; }
+.sl-cardlink[data-size='sm'] .sl-card-body { padding: 8px 12px; }
+.sl-cardlink[data-size='lg'] .sl-card-body { padding: 18px 18px; }
+.sl-cardlink[data-size='lg'] .sl-link-text b { font-size: 17px; }
+.sl-featured[data-size='sm'] { min-height: 120px; }
+.sl-featured[data-size='lg'] { min-height: 230px; }
+.sl-cardlink[data-custom] { color: var(--btn-text); background: var(--btn); border: 2px solid var(--btn-border); backdrop-filter: none; }
+.sl-featured[data-custom] { border: 2px solid var(--btn-border); }

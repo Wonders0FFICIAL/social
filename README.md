@@ -10,7 +10,7 @@ Linktree-style pages on **social.jrofficial.org**.
 | `/admin` | Moderation (only emails in `ADMIN_EMAILS`) |
 | `/<username>` | Public phone page. Share, Report and "Create your own" sit outside the phone |
 
-Features: block-based pages (links as button/card/banner, social icons, headings, text, galleries in 4 layouts, images, YouTube/Instagram/Spotify/TikTok/Vimeo embeds, contact forms, dividers), up to 25 pages per profile, Font Awesome icons, 16 themes, gradients, background images, fonts, shadows, 3 navigation styles, inbox for contact forms (CSV export), link-preview card for Discord/X/iMessage, report button + admin moderation page.
+Features: per-page looks (each page can have its own background, colours, buttons and font), per-link styles, undo/redo in the editor, block-based pages (links as button/card/banner, social icons, headings, text, galleries in 4 layouts, images, YouTube/Instagram/Spotify/TikTok/Vimeo embeds, contact forms, dividers), up to 25 pages per profile, Font Awesome icons, 16 themes, gradients, background images, fonts, shadows, 3 navigation styles, inbox for contact forms (CSV export), link-preview card for Discord/X/iMessage, report button + admin moderation page.
 
 Logo: `public/logo.svg` (+ `logo-512.png`, `favicon.svg`, `apple-touch-icon.png`).
 

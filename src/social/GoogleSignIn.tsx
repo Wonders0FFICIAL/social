@@ -4,12 +4,19 @@ const SRC = 'https://accounts.google.com/gsi/client';
 
 export default function GoogleSignIn({
   onCredential,
+  onFail,
+  text = 'continue_with',
 }: {
   onCredential: (credential: string) => void;
+  /** Google's script was blocked or never produced a button */
+  onFail?: () => void;
+  text?: 'signin_with' | 'signup_with' | 'continue_with';
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const cb = useRef(onCredential);
   cb.current = onCredential;
+  const fail = useRef(onFail);
+  fail.current = onFail;
 
   useEffect(() => {
     function init() {
@@ -22,15 +29,20 @@ export default function GoogleSignIn({
       g.accounts.id.renderButton(ref.current, {
         theme: 'outline',
         size: 'large',
-        shape: 'rectangular',
-        text: 'continue_with',
-        width: 280,
+        shape: 'pill',
+        text,
+        width: 320,
       });
     }
 
+    // if nothing has drawn a button after a while, tell the page (ad blocker, offline, ...)
+    const watchdog = setTimeout(() => {
+      if (ref.current && ref.current.childElementCount === 0) fail.current?.();
+    }, 7000);
+
     if ((window as any).google?.accounts?.id) {
       init();
-      return;
+      return () => clearTimeout(watchdog);
     }
     let script = document.querySelector<HTMLScriptElement>(`script[src="${SRC}"]`);
     if (!script) {
@@ -39,8 +51,14 @@ export default function GoogleSignIn({
       script.async = true;
       document.head.appendChild(script);
     }
+    const onError = () => fail.current?.();
     script.addEventListener('load', init);
-    return () => script!.removeEventListener('load', init);
+    script.addEventListener('error', onError);
+    return () => {
+      clearTimeout(watchdog);
+      script!.removeEventListener('load', init);
+      script!.removeEventListener('error', onError);
+    };
   }, []);
 
   return <div ref={ref} />;

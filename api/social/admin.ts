@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { images, messages, profiles, reports } from '../_lib/db.js';
+import { images, messages, profiles, reports, toPublic } from '../_lib/db.js';
 import { getSession, isAdmin } from '../_lib/session.js';
 import { USERNAME_RE } from '../_lib/validate.js';
 
@@ -7,6 +7,7 @@ import { USERNAME_RE } from '../_lib/validate.js';
 //
 // GET  /api/social/admin            -> open reports grouped by page + disabled pages
 // GET  /api/social/admin?q=name     -> look up one page
+// GET  /api/social/admin?view=name  -> full page content + its reports (works for disabled pages too)
 // POST /api/social/admin { action: 'disable' | 'enable' | 'dismiss' | 'delete', username }
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
@@ -18,11 +19,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const reps = await reports();
 
     if (req.method === 'GET') {
-      const q = String(req.query.q ?? '').toLowerCase().trim();
+      const view = String(req.query.view ?? '').toLowerCase().trim();
+      if (view) {
+        if (!USERNAME_RE.test(view)) return res.status(400).json({ error: 'Bad username' });
+        const p = await profs.findOne({ username: view });
+        const list = await reps.find({ username: view }).sort({ createdAt: -1 }).limit(50).toArray();
+        return res.status(200).json({
+          profile: p ? toPublic(p) : null,
+          disabled: p?.disabled === true,
+          reports: list.map((r) => ({
+            reason: r.reason,
+            details: r.details || '',
+            status: r.status,
+            createdAt: r.createdAt,
+          })),
+        });
+      }
+
+      const q = String(req.query.q ?? '').toLowerCase().trim().replace(/^@/, '');
       if (q) {
         const p = USERNAME_RE.test(q) ? await profs.findOne({ username: q }) : null;
+        const open = p ? await reps.countDocuments({ username: q, status: 'open' }) : 0;
         return res.status(200).json({
-          found: p ? { username: p.username, displayName: p.displayName, disabled: p.disabled === true } : null,
+          found: p ? { username: p.username, displayName: p.displayName, disabled: p.disabled === true, open } : null,
         });
       }
 
@@ -67,6 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           disabled: byName.get(g._id)?.disabled === true,
         })),
         disabled: disabled.map((d) => ({ username: d.username, displayName: d.displayName })),
+        totalPages: await profs.countDocuments({}),
       });
     }
 

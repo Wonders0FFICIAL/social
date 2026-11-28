@@ -42,11 +42,19 @@ export const api = {
     post<{ ok: true }>('/api/social/report', b),
 
   admin: () =>
-    req<{ reports: AdminReport[]; disabled: { username: string; displayName: string }[] }>('/api/social/admin'),
+    req<{ reports: AdminReport[]; disabled: { username: string; displayName: string }[]; totalPages: number }>(
+      '/api/social/admin',
+    ),
   adminFind: (q: string) =>
-    req<{ found: { username: string; displayName: string; disabled: boolean } | null }>(
+    req<{ found: { username: string; displayName: string; disabled: boolean; open: number } | null }>(
       `/api/social/admin?q=${encodeURIComponent(q)}`,
     ),
+  adminView: (username: string) =>
+    req<{
+      profile: SocialProfile | null;
+      disabled: boolean;
+      reports: { reason: string; details: string; status: string; createdAt: string }[];
+    }>(`/api/social/admin?view=${encodeURIComponent(username)}`),
   adminAct: (action: 'disable' | 'enable' | 'dismiss' | 'delete', username: string) =>
     post<{ ok: true }>('/api/social/admin', { action, username }),
 };

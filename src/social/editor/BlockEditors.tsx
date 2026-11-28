@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { LuArrowDown, LuArrowUp, LuChevronDown, LuChevronRight, LuCopy, LuEye, LuEyeOff, LuPlus, LuTrash2 } from 'react-icons/lu';
+import { useEffect, useState } from 'react';
+import { LuArrowDown, LuArrowUp, LuChevronDown, LuChevronRight, LuCopy, LuEye, LuEyeOff, LuGripVertical, LuPlus, LuSearch, LuTrash2, LuWand } from 'react-icons/lu';
 import { BLOCK_TYPES, newBlock } from '../blocks';
 import { parseEmbed } from '../embed';
+import { hostOf, iconLabel as iconLabelOf } from '../icons';
 import { Icon, autoIconFor, iconName } from '../icons';
 import type { Block, BlockType, GalleryBlock, LinkStyle, SocialsBlock, Theme } from '../types';
-import { BlockCtx, ColorOverride, Field, IconGrid, ImagePicker, LinkIconPicker, LinkStyleEditor, MultiUpload, Seg, move, uid, validUrl } from './controls';
+import { BlockCtx, ColorOverride, Field, IconGrid, ImagePicker, LinkIconPicker, LinkStyleEditor, MultiUpload, Seg, move, uid, useReorder, validUrl } from './controls';
 import { useContext } from 'react';
 
 type P<B extends Block> = { b: B; set: (patch: Partial<B>) => void };
@@ -281,19 +282,144 @@ function Body({ b, set }: { b: Block; set: (patch: Partial<Block>) => void }) {
   }
 }
 
+/* ---------- smart "paste a link" ---------- */
+
+const IMG_EXT = /\.(png|jpe?g|gif|webp|avif)(\?.*)?$/i;
+
+/** Turns whatever someone pastes into the most fitting block. */
+export function blockFromPaste(raw: string): Block | null {
+  const s = raw.trim();
+  if (!s) return null;
+
+  const link = (url: string, title: string): Block => ({ ...newBlock('link'), url, title } as Block);
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return link(`mailto:${s}`, 'Email me');
+  if (/^mailto:/i.test(s)) return validUrl(s) ? link(s, 'Email me') : null;
+  if (/^tel:/i.test(s)) return validUrl(s) ? link(s, 'Call me') : null;
+
+  const url = /^https?:\/\//i.test(s) ? s : `https://${s}`;
+  if (!validUrl(url)) return null;
+
+  const emb = parseEmbed(url);
+  if (emb && !emb.card) return { ...newBlock('embed'), url } as Block;
+  if (IMG_EXT.test(url)) return { ...newBlock('image'), src: url } as Block;
+
+  const auto = autoIconFor(url);
+  const host = hostOf(url);
+  const base = host.split('.').slice(-2, -1)[0] || host;
+  const title = auto && auto !== 'link' ? iconLabelOf(auto) : base.charAt(0).toUpperCase() + base.slice(1);
+  return link(url, title);
+}
+
+function QuickAdd({ onAdd }: { onAdd: (b: Block) => void }) {
+  const [v, setV] = useState('');
+  const [err, setErr] = useState('');
+  function go(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!v.trim()) return;
+    const b = blockFromPaste(v);
+    if (!b) return setErr('That doesn’t look like a link. Try https://…');
+    setErr('');
+    setV('');
+    onAdd(b);
+  }
+  return (
+    <form className="ed-quickadd" onSubmit={go}>
+      <div className="ed-quickadd-row">
+        <LuWand size={16} aria-hidden />
+        <input
+          value={v}
+          onChange={(e) => { setV(e.target.value); setErr(''); }}
+          onPaste={(e) => {
+            const t = e.clipboardData.getData('text');
+            const b = blockFromPaste(t);
+            if (b) { e.preventDefault(); setV(''); setErr(''); onAdd(b); }
+          }}
+          placeholder="Paste any link to add it: website, YouTube, Spotify, email…"
+          aria-label="Paste a link to add a block"
+        />
+        <button className="ed-btn sm" disabled={!v.trim()}>Add</button>
+      </div>
+      {err && <div className="ed-err-sm">{err}</div>}
+    </form>
+  );
+}
+
+/* ---------- block picker with previews ---------- */
+
+function Thumb({ type }: { type: BlockType }) {
+  const bar = (w: string, h = 6) => <i style={{ width: w, height: h }} />;
+  switch (type) {
+    case 'link': return <div className="bt bt-col">{bar('100%', 10)}{bar('100%', 10)}</div>;
+    case 'socials': return <div className="bt bt-row">{[0, 1, 2, 3].map((n) => <b key={n} />)}</div>;
+    case 'heading': return <div className="bt bt-col">{bar('60%', 8)}{bar('40%', 4)}</div>;
+    case 'text': return <div className="bt bt-col">{bar('100%', 4)}{bar('90%', 4)}{bar('70%', 4)}</div>;
+    case 'gallery': return <div className="bt bt-grid">{[0, 1, 2, 3].map((n) => <u key={n} />)}</div>;
+    case 'image': return <div className="bt bt-img"><u /></div>;
+    case 'embed': return <div className="bt bt-img"><span className="bt-play" /></div>;
+    case 'contact': return <div className="bt bt-col">{bar('100%', 7)}{bar('100%', 7)}{bar('45%', 8)}</div>;
+    case 'divider': return <div className="bt bt-col"><hr /></div>;
+  }
+}
+
+export function AddBlock({ onAdd }: { onAdd: (t: BlockType) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const list = BLOCK_TYPES.filter((m) => {
+    const s = q.trim().toLowerCase();
+    return !s || m.label.toLowerCase().includes(s) || m.desc.toLowerCase().includes(s) || m.type.includes(s);
+  });
+  return (
+    <div className="ed-addblock">
+      <button type="button" className="ed-btn primary icon wide" onClick={() => setOpen((o) => !o)}>
+        <LuPlus size={16} /> <span>Add block</span>
+      </button>
+      {open && (
+        <div className="ed-picker">
+          <div className="ed-search">
+            <LuSearch size={15} />
+            <input autoFocus placeholder="Search blocks" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div className="ed-blockpicker">
+            {list.map((m) => (
+              <button key={m.type} type="button" onClick={() => { onAdd(m.type); setOpen(false); setQ(''); }}>
+                <Thumb type={m.type} />
+                <span>
+                  <b>{m.label}</b>
+                  <small>{m.desc}</small>
+                </span>
+              </button>
+            ))}
+            {list.length === 0 && <div className="ed-hint-sm">No block matches “{q}”</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ---------- card + list ---------- */
 
 function BlockCard({
-  b, index, count, open, onToggle, onChange, onMove, onDuplicate, onDelete,
+  b, index, count, open, onToggle, onChange, onMove, onDuplicate, onDelete, grab, target, indicator,
 }: {
   b: Block; index: number; count: number; open: boolean;
   onToggle: () => void; onChange: (patch: Partial<Block>) => void;
   onMove: (dir: -1 | 1) => void; onDuplicate: () => void; onDelete: () => void;
+  grab: object;
+  target: object;
+  indicator: '' | 'before' | 'after';
 }) {
   const meta = BLOCK_TYPES.find((m) => m.type === b.type)!;
   return (
-    <div className={`ed-block${b.hidden ? ' off' : ''}${open ? ' open' : ''}`}>
+    <div
+      id={`blk-${b.id}`}
+      className={`ed-block${b.hidden ? ' off' : ''}${open ? ' open' : ''}${indicator ? ` drop-${indicator}` : ''}`}
+      {...target}
+    >
       <div className="ed-block-head">
+        <span className="ed-grip" title="Drag to reorder" {...grab}>
+          <LuGripVertical size={16} />
+        </span>
         <button type="button" className="ed-block-title" onClick={onToggle} aria-expanded={open}>
           {open ? <LuChevronDown size={16} /> : <LuChevronRight size={16} />}
           <Icon name={BLOCK_ICON[b.type]} size={14} />
@@ -319,68 +445,65 @@ function BlockCard({
   );
 }
 
-export function AddBlock({ onAdd }: { onAdd: (t: BlockType) => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="ed-addblock">
-      <button type="button" className="ed-btn primary icon wide" onClick={() => setOpen((o) => !o)}>
-        <LuPlus size={16} /> <span>Add block</span>
-      </button>
-      {open && (
-        <div className="ed-blockpicker">
-          {BLOCK_TYPES.map((m) => (
-            <button key={m.type} type="button" onClick={() => { onAdd(m.type); setOpen(false); }}>
-              <span className="bp-ic"><Icon name={BLOCK_ICON[m.type]} size={16} /></span>
-              <span>
-                <b>{m.label}</b>
-                <small>{m.desc}</small>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function BlockList({ blocks, onChange, theme }: { blocks: Block[]; onChange: (b: Block[]) => void; theme: Theme }) {
+export function BlockList({
+  blocks, onChange, theme, focus,
+}: {
+  blocks: Block[];
+  onChange: (b: Block[]) => void;
+  theme: Theme;
+  /** open + scroll to a block (used by the "fix this" links) */
+  focus?: { block?: string; nonce: number };
+}) {
   const [openId, setOpenId] = useState<string | null>(null);
-  const add = (t: BlockType) => {
-    const nb = newBlock(t);
-    onChange([...blocks, nb]);
-    setOpenId(nb.id);
+  const reorder = useReorder(blocks, onChange, 'y');
+
+  useEffect(() => {
+    if (!focus?.block) return;
+    setOpenId(focus.block);
+    const t = setTimeout(() => document.getElementById(`blk-${focus.block}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
+    return () => clearTimeout(t);
+  }, [focus?.block, focus?.nonce]);
+
+  const addBlock = (b: Block) => {
+    onChange([...blocks, b]);
+    setOpenId(b.id);
   };
   const applyStyleToAll = (style: LinkStyle | undefined) =>
     onChange(blocks.map((x) => (x.type === 'link' ? { ...x, style: style ? { ...style } : undefined } : x)));
+
   return (
     <BlockCtx.Provider value={{ theme, applyStyleToAll }}>
-    <div className="ed-blocks">
-      {blocks.length === 0 && <div className="ed-hint">This page is empty. Add your first block below.</div>}
-      {blocks.map((b, i) => (
-        <BlockCard
-          key={b.id}
-          b={b}
-          index={i}
-          count={blocks.length}
-          open={openId === b.id}
-          onToggle={() => setOpenId(openId === b.id ? null : b.id)}
-          onChange={(patch) => onChange(blocks.map((x) => (x.id === b.id ? ({ ...x, ...patch } as Block) : x)))}
-          onMove={(d) => onChange(move(blocks, i, d))}
-          onDuplicate={() => {
-            const copy = JSON.parse(JSON.stringify(b)) as Block;
-            copy.id = uid();
-            if (copy.type === 'socials') copy.items = copy.items.map((x) => ({ ...x, id: uid() }));
-            if (copy.type === 'gallery') copy.images = copy.images.map((x) => ({ ...x, id: uid() }));
-            const next = [...blocks];
-            next.splice(i + 1, 0, copy);
-            onChange(next);
-            setOpenId(copy.id);
-          }}
-          onDelete={() => onChange(blocks.filter((x) => x.id !== b.id))}
-        />
-      ))}
-      <AddBlock onAdd={add} />
-    </div>
+      <div className="ed-blocks">
+        <QuickAdd onAdd={addBlock} />
+        {blocks.length === 0 && <div className="ed-hint">This page is empty. Paste a link above, or add a block below.</div>}
+        {blocks.map((b, i) => (
+          <BlockCard
+            key={b.id}
+            b={b}
+            index={i}
+            count={blocks.length}
+            open={openId === b.id}
+            grab={reorder.grab(i, (el) => el.closest('.ed-block'))}
+            target={reorder.target(i)}
+            indicator={reorder.indicator(i)}
+            onToggle={() => setOpenId(openId === b.id ? null : b.id)}
+            onChange={(patch) => onChange(blocks.map((x) => (x.id === b.id ? ({ ...x, ...patch } as Block) : x)))}
+            onMove={(d) => onChange(move(blocks, i, d))}
+            onDuplicate={() => {
+              const copy = JSON.parse(JSON.stringify(b)) as Block;
+              copy.id = uid();
+              if (copy.type === 'socials') copy.items = copy.items.map((x) => ({ ...x, id: uid() }));
+              if (copy.type === 'gallery') copy.images = copy.images.map((x) => ({ ...x, id: uid() }));
+              const next = [...blocks];
+              next.splice(i + 1, 0, copy);
+              onChange(next);
+              setOpenId(copy.id);
+            }}
+            onDelete={() => onChange(blocks.filter((x) => x.id !== b.id))}
+          />
+        ))}
+        <AddBlock onAdd={(t) => addBlock(newBlock(t))} />
+      </div>
     </BlockCtx.Provider>
   );
 }

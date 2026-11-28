@@ -1,12 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { LuCheck, LuCopy, LuExternalLink, LuLogOut, LuRedo2, LuShield, LuUndo2 } from 'react-icons/lu';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  LuCheck, LuCircleAlert, LuExternalLink, LuInbox, LuLayers, LuListChecks, LuLoader, LuLogOut, LuPalette,
+  LuRedo2, LuShare2, LuShield, LuUndo2, LuUser,
+} from 'react-icons/lu';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { api } from './api';
 import { EMPTY_PROFILE } from './blocks';
 import AppearanceTab from './editor/AppearanceTab';
 import { ImagePicker, MAX_BYTES, Seg } from './editor/controls';
 import InboxTab from './editor/InboxTab';
+import { ago, lint, type Tab } from './editor/model';
 import PagesTab from './editor/PagesTab';
+import ShareDialog from './editor/ShareDialog';
+import StartTab, { type Target } from './editor/StartTab';
 import Logo from './Logo';
 import PhoneFrame, { PHONE_H, PHONE_W } from './PhoneFrame';
 import ProfileScreen from './ProfileScreen';
@@ -14,7 +20,7 @@ import { DEFAULT_THEME } from './themes';
 import type { Me, SocialProfile, Theme } from './types';
 import { useViewport } from './useViewport';
 
-type Tab = 'profile' | 'pages' | 'look' | 'inbox';
+const AUTOSAVE_MS = 1800;
 
 export default function Editor() {
   const nav = useNavigate();
@@ -23,16 +29,22 @@ export default function Editor() {
   const [draft, setDraft] = useState<SocialProfile>(EMPTY_PROFILE(DEFAULT_THEME));
   const [saved, setSaved] = useState('');
   const [savedName, setSavedName] = useState<string | null>(null);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<Tab>('profile');
+  const [savedAt, setSavedAt] = useState(0);
+  const [status, setStatus] = useState<{ kind: 'idle' | 'saving' | 'error'; text?: string }>({ kind: 'idle' });
+  const [tab, setTab] = useState<Tab>('start');
   const [pageSel, setPageSel] = useState(0);
+  const [focus, setFocus] = useState<{ block?: string; nonce: number }>({ nonce: 0 });
   const [pane, setPane] = useState<'edit' | 'preview'>('edit');
-  const [copied, setCopied] = useState(false);
+  const [share, setShare] = useState<{ fresh: boolean } | null>(null);
+  const [, tick] = useState(0);
   const { w, h } = useViewport();
 
-  const dirty = JSON.stringify(draft) !== saved;
+  const draftJson = useMemo(() => JSON.stringify(draft), [draft]);
+  const dirty = draftJson !== saved;
   const wide = w >= 960;
+  const issues = useMemo(() => lint(draft), [draft]);
+  const errors = issues.filter((i) => i.level === 'error');
+  const published = savedName !== null;
 
   useEffect(() => {
     document.title = 'Edit your page · social';
@@ -45,6 +57,8 @@ export default function Editor() {
           setDraft(r.profile);
           setSaved(JSON.stringify(r.profile));
           setSavedName(r.profile.username);
+          setSavedAt(Date.now());
+          setTab('pages');
         } else {
           let claim = '';
           try {
@@ -66,11 +80,11 @@ export default function Editor() {
     return () => window.removeEventListener('beforeunload', f);
   }, [dirty, phase]);
 
+  // keep "saved 2 min ago" fresh
   useEffect(() => {
-    if (!msg?.ok) return;
-    const t = setTimeout(() => setMsg(null), 2500);
-    return () => clearTimeout(t);
-  }, [msg]);
+    const t = setInterval(() => tick((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
 
   // ----- undo / redo: every edit goes through commit(), rapid edits (typing, dragging a slider) merge into one step
   const draftRef = useRef(draft);
@@ -119,35 +133,82 @@ export default function Editor() {
   const set = (patch: Partial<SocialProfile>) => commit((d) => ({ ...d, ...patch }));
   const setTheme = (patch: Partial<Theme>) => commit((d) => ({ ...d, theme: { ...d.theme, ...patch } }));
 
-  async function save() {
-    if (busy) return;
-    if (JSON.stringify(draft).length > MAX_BYTES) {
-      return setMsg({ ok: false, text: 'This page has too much content. Remove a few blocks.' });
-    }
-    setBusy(true);
-    setMsg(null);
-    try {
-      const r = await api.save({ ...draft, username: draft.username.trim().toLowerCase() });
-      setDraft(r.profile);
-      setSaved(JSON.stringify(r.profile));
-      setSavedName(r.profile.username);
-      setMsg({ ok: true, text: 'Saved' });
-    } catch (e) {
-      setMsg({ ok: false, text: (e as Error).message });
-    } finally {
-      setBusy(false);
-    }
-  }
+  const go = useCallback((t: Target) => {
+    setTab(t.tab);
+    if (t.page !== undefined) setPageSel(t.page);
+    setFocus((f) => ({ block: t.block, nonce: f.nonce + 1 }));
+    setPane('edit');
+  }, []);
+
+  // ----- saving (manual "Publish / Save" and automatic)
+  const saving = useRef(false);
+  const failedJson = useRef('');
+
+  const save = useCallback(
+    async (manual: boolean) => {
+      if (saving.current) return;
+      const cur = draftRef.current;
+      const json = JSON.stringify(cur);
+      const probs = lint(cur).filter((i) => i.level === 'error');
+      if (probs.length) {
+        if (manual) {
+          setStatus({ kind: 'error', text: probs.length === 1 ? probs[0].text : `${probs.length} things to fix first` });
+          go({ tab: probs[0].tab, page: probs[0].page, block: probs[0].block });
+        }
+        return;
+      }
+      if (json.length > MAX_BYTES) {
+        setStatus({ kind: 'error', text: 'This page has too much content. Remove a few blocks.' });
+        return;
+      }
+      saving.current = true;
+      setStatus({ kind: 'saving' });
+      const wasPublished = savedName !== null;
+      try {
+        const r = await api.save({ ...cur, username: cur.username.trim().toLowerCase() });
+        const serverJson = JSON.stringify(r.profile);
+        // only swap in the server's tidied copy if nothing changed while we were saving
+        if (JSON.stringify(draftRef.current) === json) {
+          draftRef.current = r.profile;
+          setDraft(r.profile);
+          setSaved(serverJson);
+        } else {
+          setSaved(serverJson);
+        }
+        setSavedName(r.profile.username);
+        setSavedAt(Date.now());
+        setStatus({ kind: 'idle' });
+        failedJson.current = '';
+        if (!wasPublished) setShare({ fresh: true });
+      } catch (e) {
+        failedJson.current = json;
+        setStatus({ kind: 'error', text: (e as Error).message });
+      } finally {
+        saving.current = false;
+        bump((n) => n + 1);
+      }
+    },
+    [go, savedName],
+  );
 
   const saveRef = useRef(save);
   saveRef.current = save;
+
+  // auto-save existing pages shortly after the last change (new pages are published on purpose)
+  useEffect(() => {
+    if (phase !== 'in' || !published || !dirty || errors.length > 0) return;
+    if (failedJson.current === draftJson) return;
+    const t = setTimeout(() => saveRef.current(false), AUTOSAVE_MS);
+    return () => clearTimeout(t);
+  }, [phase, published, dirty, errors.length, draftJson]);
+
   useEffect(() => {
     const f = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       const k = e.key.toLowerCase();
       if (k === 's') {
         e.preventDefault();
-        saveRef.current();
+        saveRef.current(true);
       } else if (k === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -160,17 +221,6 @@ export default function Editor() {
     window.addEventListener('keydown', f);
     return () => window.removeEventListener('keydown', f);
   }, [undo, redo]);
-
-  async function copyLink() {
-    if (!savedName) return;
-    try {
-      await navigator.clipboard.writeText(`${location.origin}/${savedName}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* ignore */
-    }
-  }
 
   async function signOut() {
     await api.logout().catch(() => {});
@@ -203,24 +253,31 @@ export default function Editor() {
   const scale = wide ? Math.min(0.82, (h - 100) / PHONE_H) : Math.min(1, (w - 32) / PHONE_W);
   const showForm = wide || pane === 'edit';
   const showPreview = wide || pane === 'preview';
-  const tabs: [Tab, string][] = [['profile', 'Profile'], ['pages', 'Pages'], ['look', 'Appearance']];
-  if (savedName) tabs.push(['inbox', 'Inbox']);
+  const saving_ = status.kind === 'saving';
+
+  const NAV: { k: Tab; label: string; Icon: typeof LuUser; badge?: number }[] = [
+    { k: 'start', label: 'Start', Icon: LuListChecks, badge: issues.length },
+    { k: 'profile', label: 'Profile', Icon: LuUser },
+    { k: 'pages', label: 'Pages', Icon: LuLayers },
+    { k: 'look', label: 'Appearance', Icon: LuPalette },
+  ];
+  if (published) NAV.push({ k: 'inbox', label: 'Inbox', Icon: LuInbox });
+
+  // one calm line that says what state the page is in
+  let state: React.ReactNode;
+  if (status.kind === 'error') state = <span className="ed-state err"><LuCircleAlert size={14} /> {status.text}</span>;
+  else if (saving_) state = <span className="ed-state"><LuLoader size={14} className="spin" /> Saving…</span>;
+  else if (dirty && errors.length) state = <span className="ed-state err"><LuCircleAlert size={14} /> {errors.length} to fix before saving</span>;
+  else if (dirty) state = <span className="ed-state">{published ? 'Saving soon…' : 'Not published yet'}</span>;
+  else if (published) state = <span className="ed-state ok"><LuCheck size={14} /> Saved {ago(savedAt)}</span>;
+  else state = <span className="ed-state">Not published yet</span>;
 
   return (
     <div className="sl-root sl-editor-root">
       <header className="ed-top">
         <div className="ed-top-left">
           <Link className="sl-logo-link" to="/" aria-label="Home"><Logo size={28} /></Link>
-          {savedName && (
-            <>
-              <a className="ed-btn sm icon" href={`/${savedName}`} target="_blank" rel="noopener">
-                <LuExternalLink size={14} /><span>View my site</span>
-              </a>
-              <button className="ed-btn sm icon ghost" onClick={copyLink}>
-                {copied ? <LuCheck size={14} /> : <LuCopy size={14} />}<span>{copied ? 'Copied' : 'Copy link'}</span>
-              </button>
-            </>
-          )}
+          {state}
         </div>
         <div className="ed-top-right">
           <div className="ed-history">
@@ -231,15 +288,27 @@ export default function Editor() {
               <LuRedo2 size={16} />
             </button>
           </div>
-          {dirty && <span className="ed-dirty">Unsaved changes</span>}
-          {msg && <span className={msg.ok ? 'ed-ok' : 'ed-err'}>{msg.text}</span>}
-          <button className="ed-btn primary" onClick={save} disabled={busy || !dirty}>
-            {busy ? 'Saving…' : 'Save'}
+          {published && (
+            <>
+              <a className="ed-btn sm icon" href={`/${savedName}`} target="_blank" rel="noopener">
+                <LuExternalLink size={14} /><span>View live</span>
+              </a>
+              <button className="ed-btn sm icon" onClick={() => setShare({ fresh: false })}>
+                <LuShare2 size={14} /><span>Share</span>
+              </button>
+            </>
+          )}
+          <button
+            className="ed-btn primary"
+            onClick={() => save(true)}
+            disabled={saving_ || (published && !dirty)}
+          >
+            {published ? 'Save' : 'Publish'}
           </button>
           {me?.admin && (
-            <Link className="ed-btn sm icon ghost" to="/admin" title="Moderation"><LuShield size={14} /></Link>
+            <Link className="ed-btn sm icon ghost" to="/admin" title="Moderation" aria-label="Moderation"><LuShield size={14} /></Link>
           )}
-          <button className="ed-btn sm icon ghost" onClick={signOut} title="Sign out"><LuLogOut size={14} /><span>Sign out</span></button>
+          <button className="ed-btn sm icon ghost" onClick={signOut} title="Sign out" aria-label="Sign out"><LuLogOut size={14} /></button>
         </div>
       </header>
 
@@ -249,14 +318,24 @@ export default function Editor() {
         </div>
       )}
 
-      <div className="ed-wrap">
+      <div className="ed-shell">
+        {showForm && (
+          <nav className="ed-side" aria-label="Editor sections">
+            {NAV.map(({ k, label, Icon, badge }) => (
+              <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)} aria-current={tab === k ? 'page' : undefined}>
+                <Icon size={18} />
+                <span>{label}</span>
+                {!!badge && <em className={errors.length && k === 'start' ? 'err' : ''}>{badge}</em>}
+              </button>
+            ))}
+          </nav>
+        )}
+
         {showForm && (
           <div className="ed-panel">
-            <div className="ed-tabs">
-              {tabs.map(([k, label]) => (
-                <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{label}</button>
-              ))}
-            </div>
+            {tab === 'start' && (
+              <StartTab draft={draft} publishedName={savedName} issues={issues} onGo={go} onShare={() => setShare({ fresh: false })} />
+            )}
 
             {tab === 'profile' && (
               <div className="ed-section">
@@ -271,7 +350,7 @@ export default function Editor() {
                       onChange={(e) => set({ username: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
                     />
                   </div>
-                  <small>3-20 characters: letters, numbers, underscore.</small>
+                  <small>3-20 characters: letters, numbers, underscore.{published && draft.username !== savedName ? ' Changing it changes your link.' : ''}</small>
                 </label>
                 <label className="ed-field">
                   <span>Display name</span>
@@ -307,7 +386,7 @@ export default function Editor() {
               </div>
             )}
 
-            {tab === 'pages' && <PagesTab draft={draft} set={set} sel={sel} setSel={setPageSel} />}
+            {tab === 'pages' && <PagesTab draft={draft} set={set} sel={sel} setSel={setPageSel} focus={focus} />}
             {tab === 'look' && <AppearanceTab t={t} setTheme={setTheme} />}
             {tab === 'inbox' && <InboxTab />}
           </div>
@@ -321,6 +400,10 @@ export default function Editor() {
           </div>
         )}
       </div>
+
+      {share && savedName && (
+        <ShareDialog url={`${location.origin}/${savedName}`} name={savedName} fresh={share.fresh} onClose={() => setShare(null)} />
+      )}
     </div>
   );
 }

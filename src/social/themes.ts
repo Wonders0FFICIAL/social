@@ -81,7 +81,7 @@ const mix = (a: string, b: string, p: number) => {
   const x = rgb(a), y = rgb(b);
   return toHex(x.map((v, i) => v * (1 - p) + y[i] * p));
 };
-const lum = (h: string) => {
+export const lum = (h: string) => {
   const [r, g, b] = rgb(h).map((v) => {
     const c = v / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;

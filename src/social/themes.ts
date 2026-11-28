@@ -72,6 +72,51 @@ export function imageLayer(t: Theme): CSSProperties | null {
   };
 }
 
+/* ---------- opaque navigation colours ---------- */
+
+const rgb = (h: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+const toHex = (c: number[]) => '#' + c.map((x) => Math.round(Math.max(0, Math.min(255, x))).toString(16).padStart(2, '0')).join('');
+/** p = share of b in the result (0..1) */
+const mix = (a: string, b: string, p: number) => {
+  const x = rgb(a), y = rgb(b);
+  return toHex(x.map((v, i) => v * (1 - p) + y[i] * p));
+};
+const lum = (h: string) => {
+  const [r, g, b] = rgb(h).map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+/**
+ * Solid (never see-through) colours for the page navigation, worked out from the
+ * theme so it sits naturally on any background: a surface tinted from the background,
+ * readable inactive labels, and an active pill that always contrasts.
+ */
+export function navVars(t: Theme): Record<string, string> {
+  // where the bar sits decides which gradient end it is placed on
+  const base =
+    t.bgType === 'image' ? (lum(t.textColor) > 0.5 ? '#16161a' : '#ffffff')
+    : t.bgType === 'gradient' ? (t.nav === 'top' ? t.bg1 : t.bg2)
+    : t.bg1;
+  const dark = lum(base) < 0.4;
+  const surface = mix(base, dark ? '#ffffff' : '#000000', dark ? 0.12 : 0.06);
+  const ink = lum(surface) > 0.45 ? '#18181b' : '#fafafa';
+  const fg = mix(surface, ink, 0.8);
+  let on = t.btnColor;
+  if (Math.abs(lum(on) - lum(surface)) < 0.18) on = t.textColor;
+  if (Math.abs(lum(on) - lum(surface)) < 0.18) on = ink;
+  const onFg = lum(on) > 0.5 ? '#111111' : '#ffffff';
+  return {
+    '--nav-bg': surface,
+    '--nav-line': mix(surface, ink, 0.16),
+    '--nav-fg': fg,
+    '--nav-on': on,
+    '--nav-on-fg': onFg,
+  };
+}
+
 export function themeVars(t: Theme): CSSProperties {
   return {
     '--text': t.textColor,
@@ -83,6 +128,7 @@ export function themeVars(t: Theme): CSSProperties {
     '--radius-card': CARD_RADIUS[t.btnShape],
     '--avatar-radius': AVATAR_RADIUS[t.avatarShape],
     '--gap': GAP[t.spacing],
+    ...navVars(t),
     background: bgCss(t),
   } as CSSProperties;
 }

@@ -42,18 +42,20 @@
 .sl-bare .sl-scroll.sub {
   padding-top: 28px;
 }
-.sl-scroll.nav-bottom,
+.sl-scroll.nav-bottom {
+  padding-bottom: 120px;
+}
 .sl-scroll.nav-dock {
-  padding-bottom: 104px;
+  padding-bottom: 132px;
 }
 .sl-scroll.nav-top {
-  padding-top: 128px;
+  padding-top: 140px;
 }
 .sl-scroll.nav-top.sub {
-  padding-top: 116px;
+  padding-top: 128px;
 }
 .sl-bare .sl-scroll.nav-top {
-  padding-top: 92px;
+  padding-top: 98px;
 }
 
 /* ---------- header ---------- */
@@ -562,43 +564,37 @@
   color: #fca5a5;
 }
 
-/* ---------- page navigation ---------- */
+/* ---------- page navigation (always opaque) ---------- */
 .sl-tabs {
   position: absolute;
   z-index: 3;
   display: flex;
-  gap: 4px;
-  background: color-mix(in srgb, var(--text) 9%, transparent);
-  backdrop-filter: blur(18px) saturate(1.5);
-  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+  gap: 6px;
+  background: var(--nav-bg);
+  border: 1px solid var(--nav-line);
 }
 .sl-tabs.bottom {
   inset: auto 0 0;
-  justify-content: center;
-  padding: 10px 12px 26px;
-  border-top: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  padding: 10px 12px 28px;
+  border-width: 1px 0 0;
 }
 .sl-bare .sl-tabs.bottom {
-  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 .sl-tabs.dock {
-  left: 50%;
-  bottom: 24px;
-  max-width: calc(100% - 28px);
-  padding: 6px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  inset: auto 14px 18px;
+  padding: 8px;
+  border-radius: 26px;
+  box-shadow: 0 14px 34px -12px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.sl-bare .sl-tabs.dock {
+  bottom: max(18px, env(safe-area-inset-bottom));
 }
 .sl-tabs.top {
-  top: 56px;
-  left: 50%;
-  max-width: calc(100% - 28px);
-  padding: 5px;
-  transform: translateX(-50%);
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  inset: 54px 14px auto;
+  padding: 6px;
+  border-radius: 18px;
+  box-shadow: 0 8px 22px -14px rgba(0, 0, 0, 0.5);
 }
 .sl-bare .sl-tabs.top {
   top: 14px;
@@ -608,21 +604,30 @@
   flex: 1 1 0;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
-  max-width: 128px;
-  padding: 9px 12px;
+  min-height: 52px;
+  padding: 10px 12px;
   overflow: hidden;
   border: 0;
-  border-radius: 999px;
+  border-radius: 18px;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--text);
+  color: var(--nav-fg);
   cursor: pointer;
-  opacity: 0.6;
   background: transparent;
-  transition: background 0.15s, opacity 0.15s;
+  transition: background 0.15s, color 0.15s;
+}
+.sl-tabs.dock button {
+  border-radius: 19px;
+}
+.sl-tabs.top button {
+  min-height: 44px;
+  border-radius: 13px;
+}
+.sl-tabs button:hover:not(.on) {
+  background: color-mix(in srgb, var(--nav-fg) 12%, var(--nav-bg));
 }
 .sl-tabs button span {
   overflow: hidden;
@@ -631,14 +636,17 @@
 }
 .sl-tabs button.stacked {
   flex-direction: column;
-  gap: 3px;
-  padding: 7px 10px;
-  font-size: 11px;
-  border-radius: 16px;
+  gap: 4px;
+  padding: 8px 8px 7px;
+  font-size: 12px;
+}
+.sl-tabs button.stacked svg {
+  width: 20px;
+  height: 20px;
 }
 .sl-tabs button.on {
-  opacity: 1;
-  background: color-mix(in srgb, var(--text) 18%, transparent);
+  color: var(--nav-on-fg);
+  background: var(--nav-on);
 }
 
 /* ---------- lightbox ---------- */

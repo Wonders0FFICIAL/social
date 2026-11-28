@@ -125,29 +125,76 @@ function EmbedCard({ url, preview }: { url: string; preview?: boolean }) {
   if (!info) return preview ? <div className="sl-empty">Paste a video, post or song link</div> : null;
 
   const allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write';
-  const sandbox = 'allow-scripts allow-same-origin allow-popups allow-presentation allow-forms';
+  const sandbox = 'allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation allow-forms';
+  const narrow = info.width ? { maxWidth: info.width } : undefined;
 
-  // YouTube: show a thumbnail first, load the player only on click (faster + more private)
+  // Instagram profiles can't be embedded: show a follow card
+  if (info.card) {
+    return (
+      <a className="sl-cardlink sl-profilecard" href={info.href} target="_blank" rel="noopener noreferrer">
+        <span className="sl-profilecard-ic"><Icon name="instagram" size={22} /></span>
+        <span className="sl-link-text">
+          <b>@{info.id}</b>
+          <small>Follow on Instagram</small>
+        </span>
+      </a>
+    );
+  }
+
+  const openLink = info.href && (
+    <a className="sl-embed-open" href={info.href} target="_blank" rel="noopener noreferrer">
+      Open on {info.provider === 'youtube' ? 'YouTube' : info.provider === 'instagram' ? 'Instagram' : info.provider === 'tiktok' ? 'TikTok' : info.provider}
+    </a>
+  );
+
+  // YouTube: thumbnail first, player loads on click (faster, more private). Shorts are portrait.
   if (info.provider === 'youtube' && !play) {
     return (
-      <button className="sl-embed sl-yt" onClick={() => setPlay(true)} aria-label="Play video">
-        <img src={info.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" />
-        <span className="sl-play"><FaPlay size={18} /></span>
-      </button>
+      <div className="sl-embed-wrap" style={narrow}>
+        <button
+          className="sl-embed sl-yt"
+          style={{ aspectRatio: info.vertical ? '9 / 16' : '16 / 9' }}
+          onClick={() => setPlay(true)}
+          aria-label="Play video"
+        >
+          <img src={info.thumb} alt="" loading="lazy" referrerPolicy="no-referrer" />
+          <span className="sl-play"><FaPlay size={18} /></span>
+        </button>
+      </div>
+    );
+  }
+
+  // Instagram: tap to load (its embed script is heavy), with a plain link as a fallback
+  if (info.provider === 'instagram' && !play) {
+    return (
+      <div className="sl-embed-wrap" style={narrow}>
+        <button className="sl-embed sl-igfacade" style={{ height: 150 }} onClick={() => setPlay(true)}>
+          <Icon name="instagram" size={28} />
+          <b>Instagram post</b>
+          <small>Tap to load</small>
+        </button>
+        {openLink}
+      </div>
     );
   }
 
   return (
-    <div className="sl-embed" style={info.height ? { height: info.height } : { aspectRatio: '16 / 9' }}>
-      <iframe
-        src={info.provider === 'youtube' ? `${info.src}?autoplay=1&rel=0` : info.src}
-        title={`${info.provider} embed`}
-        loading="lazy"
-        allow={allow}
-        sandbox={sandbox}
-        allowFullScreen
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
+    <div className="sl-embed-wrap" style={narrow}>
+      <div
+        className="sl-embed"
+        style={info.vertical ? { aspectRatio: '9 / 16' } : info.height ? { height: info.height } : { aspectRatio: '16 / 9' }}
+      >
+        <iframe
+          src={info.provider === 'youtube' ? `${info.src}?autoplay=1&rel=0&playsinline=1` : info.src}
+          title={`${info.provider} embed`}
+          loading="lazy"
+          allow={allow}
+          sandbox={sandbox}
+          allowFullScreen
+          referrerPolicy="strict-origin-when-cross-origin"
+        />
+      </div>
+      {info.provider !== 'spotify' && info.provider !== 'vimeo' && openLink}
     </div>
   );
 }
@@ -354,6 +401,7 @@ export default function ProfileScreen({ profile, preview, activePage, onPageChan
       style={themeVars(t)}
     >
       {layer && <div className="sl-bgfx" style={layer} />}
+      {t.bgPattern !== 'none' && <div className={`sl-pattern ${t.bgPattern}`} />}
 
       <div
         ref={scroller}

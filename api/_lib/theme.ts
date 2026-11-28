@@ -7,6 +7,7 @@ export interface Theme {
   bgAngle: number;
   bgImage: string;
   bgDim: number; // 0-80, % black overlay on the background image
+  bgPattern: 'none' | 'dots' | 'grid' | 'lines' | 'noise';
   textColor: string;
   btnStyle: 'fill' | 'outline' | 'soft';
   btnShape: 'square' | 'rounded' | 'pill';
@@ -14,7 +15,7 @@ export interface Theme {
   btnTextColor: string;
   btnBorder: string; // '' = same as btnColor
   btnShadow: 'none' | 'soft' | 'hard';
-  font: 'sans' | 'serif' | 'mono' | 'rounded';
+  font: 'sans' | 'serif' | 'mono' | 'rounded' | 'grotesk' | 'poppins' | 'display' | 'script';
   avatarShape: 'circle' | 'rounded' | 'square';
   headerAlign: 'center' | 'left';
   spacing: 'compact' | 'normal' | 'airy';
@@ -30,6 +31,7 @@ export const DEFAULT_THEME: Theme = {
   bgAngle: 160,
   bgImage: '',
   bgDim: 0,
+  bgPattern: 'none',
   textColor: '#18181b',
   btnStyle: 'fill',
   btnShape: 'rounded',
@@ -77,6 +79,7 @@ export function cleanTheme(raw: any): { theme: Theme } | { error: string } {
       bgAngle: int(r.bgAngle, 0, 360, D.bgAngle),
       bgImage,
       bgDim: int(r.bgDim, 0, 80, D.bgDim),
+      bgPattern: pick(r.bgPattern, ['none', 'dots', 'grid', 'lines', 'noise'] as const, D.bgPattern),
       textColor: hex(r.textColor, D.textColor),
       btnStyle: pick(r.btnStyle, ['fill', 'outline', 'soft'] as const, D.btnStyle),
       btnShape: pick(r.btnShape, ['square', 'rounded', 'pill'] as const, D.btnShape),
@@ -84,7 +87,7 @@ export function cleanTheme(raw: any): { theme: Theme } | { error: string } {
       btnTextColor: hex(r.btnTextColor, D.btnTextColor),
       btnBorder: r.btnBorder === '' ? '' : hex(r.btnBorder, D.btnBorder),
       btnShadow: pick(r.btnShadow, ['none', 'soft', 'hard'] as const, D.btnShadow),
-      font: pick(r.font, ['sans', 'serif', 'mono', 'rounded'] as const, D.font),
+      font: pick(r.font, ['sans', 'serif', 'mono', 'rounded', 'grotesk', 'poppins', 'display', 'script'] as const, D.font),
       avatarShape: pick(r.avatarShape, ['circle', 'rounded', 'square'] as const, D.avatarShape),
       headerAlign: pick(r.headerAlign, ['center', 'left'] as const, D.headerAlign),
       spacing: pick(r.spacing, ['compact', 'normal', 'airy'] as const, D.spacing),

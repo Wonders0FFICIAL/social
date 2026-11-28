@@ -5,6 +5,7 @@ export interface Theme {
   bgAngle: number;
   bgImage: string;
   bgDim: number;
+  bgPattern: 'none' | 'dots' | 'grid' | 'lines' | 'noise';
   textColor: string;
   btnStyle: 'fill' | 'outline' | 'soft';
   btnShape: 'square' | 'rounded' | 'pill';
@@ -13,7 +14,7 @@ export interface Theme {
   /** '' = same as btnColor */
   btnBorder: string;
   btnShadow: 'none' | 'soft' | 'hard';
-  font: 'sans' | 'serif' | 'mono' | 'rounded';
+  font: 'sans' | 'serif' | 'mono' | 'rounded' | 'grotesk' | 'poppins' | 'display' | 'script';
   avatarShape: 'circle' | 'rounded' | 'square';
   headerAlign: 'center' | 'left';
   spacing: 'compact' | 'normal' | 'airy';

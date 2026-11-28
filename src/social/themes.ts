@@ -8,6 +8,7 @@ export const DEFAULT_THEME: Theme = {
   bgAngle: 160,
   bgImage: '',
   bgDim: 0,
+  bgPattern: 'none',
   textColor: '#18181b',
   btnStyle: 'fill',
   btnShape: 'rounded',
@@ -29,6 +30,10 @@ export const FONTS: Record<Theme['font'], string> = {
   serif: "'Playfair Display', Georgia, 'Times New Roman', serif",
   mono: "ui-monospace, 'SF Mono', Menlo, Consolas, monospace",
   rounded: "Nunito, ui-rounded, 'SF Pro Rounded', system-ui, sans-serif",
+  grotesk: "'Space Grotesk', Inter, system-ui, sans-serif",
+  poppins: "Poppins, Inter, system-ui, sans-serif",
+  display: "'DM Serif Display', Georgia, serif",
+  script: "Caveat, 'Segoe Script', cursive",
 };
 
 const RADIUS = { square: '6px', rounded: '14px', pill: '999px' } as const;
@@ -75,6 +80,7 @@ export interface Preset {
 const base = (t: Partial<Theme>): Partial<Theme> => ({
   bgImage: '',
   bgDim: 0,
+  bgPattern: 'none',
   btnBorder: '',
   btnShadow: 'none',
   ...t,
@@ -97,9 +103,32 @@ export const PRESETS: Preset[] = [
   { name: 'Peach', theme: base({ bgType: 'gradient', bg1: '#fed7aa', bg2: '#fecdd3', bgAngle: 145, textColor: '#7c2d12', btnStyle: 'fill', btnColor: '#ffffff', btnTextColor: '#9a3412', btnShape: 'pill', font: 'serif', btnShadow: 'soft' }) },
   { name: 'Glass', theme: base({ bgType: 'gradient', bg1: '#6366f1', bg2: '#0ea5e9', bgAngle: 135, textColor: '#ffffff', btnStyle: 'soft', btnColor: '#ffffff', btnTextColor: '#ffffff', btnShape: 'rounded', font: 'sans' }) },
   { name: 'Brutal', theme: base({ bgType: 'solid', bg1: '#ffffff', textColor: '#000000', btnStyle: 'fill', btnColor: '#ff5c8a', btnTextColor: '#000000', btnBorder: '#000000', btnShadow: 'hard', btnShape: 'square', font: 'mono' }) },
+  { name: 'Noir', theme: base({ bgType: 'solid', bg1: '#000000', textColor: '#ffffff', btnStyle: 'outline', btnColor: '#ffffff', btnTextColor: '#ffffff', btnShape: 'pill', font: 'grotesk' }) },
+  { name: 'Cream', theme: base({ bgType: 'solid', bg1: '#f5efe6', textColor: '#3b2f25', btnStyle: 'fill', btnColor: '#3b2f25', btnTextColor: '#f5efe6', btnShape: 'rounded', font: 'display' }) },
+  { name: 'Lavender', theme: base({ bgType: 'gradient', bg1: '#e9d5ff', bg2: '#c7d2fe', bgAngle: 160, textColor: '#2e1065', btnStyle: 'fill', btnColor: '#7c3aed', btnTextColor: '#ffffff', btnShape: 'pill', font: 'poppins', btnShadow: 'soft' }) },
+  { name: 'Aurora', theme: base({ bgType: 'gradient', bg1: '#022c22', bg2: '#4c1d95', bgAngle: 145, textColor: '#ecfeff', btnStyle: 'soft', btnColor: '#5eead4', btnTextColor: '#ecfeff', btnShape: 'rounded', font: 'grotesk', bgPattern: 'noise' }) },
+  { name: 'Cyber', theme: base({ bgType: 'solid', bg1: '#0b0221', textColor: '#f0abfc', btnStyle: 'outline', btnColor: '#22d3ee', btnTextColor: '#22d3ee', btnShape: 'square', font: 'mono', btnShadow: 'hard', bgPattern: 'grid' }) },
+  { name: 'Sand', theme: base({ bgType: 'gradient', bg1: '#fef3c7', bg2: '#fcd9b6', bgAngle: 170, textColor: '#78350f', btnStyle: 'fill', btnColor: '#b45309', btnTextColor: '#fffbeb', btnShape: 'rounded', font: 'serif' }) },
+  { name: 'Sky', theme: base({ bgType: 'gradient', bg1: '#e0f2fe', bg2: '#bae6fd', bgAngle: 180, textColor: '#0c4a6e', btnStyle: 'fill', btnColor: '#0284c7', btnTextColor: '#ffffff', btnShape: 'pill', font: 'rounded', btnShadow: 'soft' }) },
+  { name: 'Berry', theme: base({ bgType: 'gradient', bg1: '#831843', bg2: '#4a044e', bgAngle: 160, textColor: '#fdf2f8', btnStyle: 'fill', btnColor: '#f9a8d4', btnTextColor: '#500724', btnShape: 'pill', font: 'poppins' }) },
+  { name: 'Lime', theme: base({ bgType: 'solid', bg1: '#d9f99d', textColor: '#14532d', btnStyle: 'fill', btnColor: '#14532d', btnTextColor: '#ecfccb', btnShape: 'square', font: 'grotesk', btnShadow: 'hard', btnBorder: '#14532d' }) },
+  { name: 'Coffee', theme: base({ bgType: 'solid', bg1: '#292524', textColor: '#e7d5c0', btnStyle: 'fill', btnColor: '#a16207', btnTextColor: '#fefce8', btnShape: 'rounded', font: 'display', bgPattern: 'lines' }) },
+  { name: 'Bubblegum', theme: base({ bgType: 'solid', bg1: '#fbcfe8', textColor: '#500724', btnStyle: 'fill', btnColor: '#ffffff', btnTextColor: '#be185d', btnBorder: '#500724', btnShadow: 'hard', btnShape: 'pill', font: 'rounded', bgPattern: 'dots' }) },
+  { name: 'Graphite', theme: base({ bgType: 'gradient', bg1: '#3f3f46', bg2: '#18181b', bgAngle: 180, textColor: '#fafafa', btnStyle: 'fill', btnColor: '#fafafa', btnTextColor: '#18181b', btnShape: 'rounded', font: 'sans' }) },
+  { name: 'Notebook', theme: base({ bgType: 'solid', bg1: '#fffdf5', textColor: '#1e3a8a', btnStyle: 'outline', btnColor: '#1e3a8a', btnTextColor: '#1e3a8a', btnShape: 'rounded', font: 'script', bgPattern: 'lines' }) },
+  { name: 'Ember', theme: base({ bgType: 'gradient', bg1: '#450a0a', bg2: '#ea580c', bgAngle: 200, textColor: '#fff7ed', btnStyle: 'fill', btnColor: '#fff7ed', btnTextColor: '#7c2d12', btnShape: 'pill', font: 'sans' }) },
 ];
 
 export const SWATCHES = [
-  '#ffffff', '#f4f4f5', '#18181b', '#000000', '#ef4444', '#f97316',
-  '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
+  '#ffffff', '#f4f4f5', '#a1a1aa', '#18181b', '#000000', '#ef4444',
+  '#f97316', '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
+  '#6366f1', '#8b5cf6', '#ec4899', '#fda4af', '#fde68a', '#bbf7d0',
+];
+
+/** One-tap gradient backgrounds */
+export const GRADIENTS: [string, string, number][] = [
+  ['#fb923c', '#db2777', 150], ['#0ea5e9', '#1e3a8a', 160], ['#22c55e', '#065f46', 160],
+  ['#a78bfa', '#ec4899', 135], ['#fde047', '#f97316', 160], ['#0f172a', '#312e81', 160],
+  ['#f472b6', '#818cf8', 120], ['#2dd4bf', '#3b82f6', 140], ['#fecdd3', '#fed7aa', 145],
+  ['#18181b', '#52525b', 180], ['#f43f5e', '#7c3aed', 150], ['#bef264', '#22d3ee', 140],
 ];
